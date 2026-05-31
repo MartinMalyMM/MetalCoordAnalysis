@@ -176,3 +176,9 @@ cython_debug/
 
 
 notebooks/*
+
+# Claude Code
+.claude/
+
+# LLM Wiki (knowledge base)
+knowledge/
