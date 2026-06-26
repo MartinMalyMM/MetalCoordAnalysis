@@ -12,8 +12,12 @@ constant::
 
     MAX_FILES = Config().max_sample_size if Config().max_sample_size else 2000
 
-at import time, the user value is ignored and every run samples up to 2000
+at import time, the user value was ignored and every run sampled up to 2000
 references regardless of ``--max_size``.
+
+The fix replaces that module-level constant with a ``_max_files()`` helper that
+reads ``Config().max_sample_size`` at call time, so the option is honoured
+regardless of import order.
 
 Design notes
 ------------
@@ -24,11 +28,6 @@ field of the JSON output, because:
   format changes; and
 * asserting ``count <= max_size`` is *vacuous* whenever a class simply has
   fewer references than ``max_size`` -- it passes even with a broken cap.
-
-They are marked ``xfail(strict=True)``: on the current (buggy) build they
-document the regression and are expected to fail. Once the production fix lands
-they will XPASS, and strict mode turns an unexpected pass into a failure so the
-markers get removed together with the fix.
 """
 
 import os
@@ -72,11 +71,6 @@ def test_default_max_files_is_2000(restore_sample_size):
     assert _effective_max_files(stats_module) == 2000
 
 
-@pytest.mark.xfail(
-    reason="Regression v0.2.13+: max_size is frozen at import time; "
-    "remove this marker once stats.py reads the cap at call time.",
-    strict=True,
-)
 def test_max_size_honoured_after_import(restore_sample_size):
     """A ``--max_size`` set after import must change the effective cap.
 
@@ -90,11 +84,6 @@ def test_max_size_honoured_after_import(restore_sample_size):
     assert _effective_max_files(stats_module) == 100
 
 
-@pytest.mark.xfail(
-    reason="Regression v0.2.13+: max_size never reaches the sampling step; "
-    "remove this marker once stats.py reads the cap at call time.",
-    strict=True,
-)
 def test_max_size_truncates_reference_pool(restore_sample_size, monkeypatch, tmp_path):
     """``--max_size`` must actually truncate the candidate reference pool.
 

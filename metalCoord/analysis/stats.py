@@ -18,7 +18,18 @@ from metalCoord.correspondense.procrustes import fit
 from metalCoord.logging import Logger
 
 
-MAX_FILES = Config().max_sample_size if Config().max_sample_size else 2000
+DEFAULT_MAX_FILES = 2000
+
+
+def _max_files() -> int:
+    """Return the maximum reference-sample size, read from the live config.
+
+    Must be evaluated at call time rather than captured in a module-level
+    constant: the CLI assigns ``Config().max_sample_size`` from ``--max_size``
+    only after these modules are imported, so a constant evaluated at import
+    time would always fall back to the default and silently ignore the option.
+    """
+    return Config().max_sample_size if Config().max_sample_size else DEFAULT_MAX_FILES
 
 
 def get_coordinate(file_data: pd.DataFrame) -> np.ndarray:
@@ -393,8 +404,9 @@ class StrictCorrespondenceStatsFinder(FileStatsFinder):
             sum_coords = np.zeros(pattern_ligand_coord.shape)
             n = 0
             angles = []
-            if len(files) > MAX_FILES:
-                files = np.random.choice(files, MAX_FILES, replace=False)
+            max_files = _max_files()
+            if len(files) > max_files:
+                files = np.random.choice(files, max_files, replace=False)
 
             cods = {}
 
@@ -528,8 +540,9 @@ class WeekCorrespondenceStatsFinder(FileStatsFinder):
 
             distances = []
             lig_names = []
-            if len(files) > MAX_FILES:
-                files = np.random.choice(files, MAX_FILES, replace=False)
+            max_files = _max_files()
+            if len(files) > max_files:
+                files = np.random.choice(files, max_files, replace=False)
 
             cods = {}
             for file in tqdm(
