@@ -1,6 +1,6 @@
 """
 Generate external bond length and angle restraints from JSON files from MetalCoord stats to keywords
-for Servalcat / Refmac5 / Coot / Phenix.
+for Servalcat / Refmac5 / Coot / Phenix / Buster.
 
 Typical usage:
 ccp4-python json2restraints.py -i 4dl8_AF3_mc.json 4dl8_MG_mc.json 4dl8_NA_mc.json -p 4dl8.cif -o mc_restraints
@@ -14,6 +14,7 @@ The script creates these files:
    The file does not include restraints for atoms with alternative conformations and atoms from symmetry-related molecules.
  - mc_restraints.params is a keyword file compatible with Phenix.refine.
    The file does not include restraints for atoms from symmetry-related molecules.
+ - mc_restraints_buster.txt is a keyword file compatible with Buster.
 
 When a structure model (PDB/mmCIF file) is given, the original metal-related LINK/connection records specified
 in the input PDB/mmCIF file are deleted and then the metal-related links were added again from scratch based on
@@ -30,6 +31,9 @@ To list all the available options, run:
 ccp4-python json2restraints.py -h
 """
 
+__author__ = "Martin Malý"
+__date__ = "2026-08-16"
+
 import json
 
 try:
@@ -44,7 +48,7 @@ def main(
     outputPrefix="restraints",
     jsonEquivalentsPath=None,
     keep_links=False,
-    phenix_variant=None,
+    distance_variant=None,
 ):
     """This script generates external bond length and angle restraints for Refmacat or Servalcat
        from the JSON files from MetalCoord stats.
@@ -58,10 +62,10 @@ def main(
                                    JSON file specifying equivalent atoms.
         keep_links (bool): Keep links in the input stPath file.
                            Default: False
-        phenix_variant (int): If more variants for the same distance restraint possible,
-                              write only n-th variant to an output .params file for Phenix.
-                              It may help troubleshooting.
-                              Default: None so all variant will be written.
+        distance_variant (int): If more variants for the same distance restraint possible,
+                                write only n-th variant to an output restraints file for Phenix and Buster.
+                                It may help troubleshooting.
+                                Default: None so all variant will be written.
 
     Returns:
         None"""
@@ -148,6 +152,9 @@ def main(
     outputLines = []
     outputLinesCoot = []
     outputLinesPhenix = []
+    outputLinesBuster = []
+    # Buster: add bond|bcor|angle|plane  <target> <sigma> [<weight>] <atom-1> ... <atom-N>
+    # Buster: <chain>|<resnum>:<atmnam>[.<altConf>]
     i_con = 1
     outputLines.append("### RESTRAINTS FROM METALCOORD - BEGINNING ###\n")
     outputLines.append("# Note that this file is not compatible with Coot \n")
@@ -182,15 +189,20 @@ def main(
                 for i in range(len(atom_ligand["distance"])):
                     line = f"exte dist first chain {atom_metal['chain']} resi {atom_metal['sequence']} inse {atom_metal['icode']} atom {atom_metal['metal']} "
                     line_coot = line
+                    line_buster = f"add bond {atom_ligand['distance'][i]} {atom_ligand['std'][i]} "
+                    line_buster += f"{atom_metal['chain']}|{atom_metal['sequence_icode']}:{atom_metal['metal']}"
                     atom_selection_1_phenix = f"chain {atom_metal['chain']} and resname {atom_metal['residue']} and resid {atom_metal['sequence_icode']} and name {atom_metal['metal']}"
                     if atom_metal["altloc"]:  # not for Coot
                         line += f"altecode {atom_metal['altloc']} "
+                        line_buster += f".{atom_metal['altloc']}"
                         atom_selection_1_phenix += f" and altloc {atom_metal['altloc']}"
                     line += f"second chain {atom_ligand['ligand']['chain']} resi {atom_ligand['ligand']['sequence']} inse {atom_ligand['ligand']['icode']} atom {atom_ligand['ligand']['name']} "
                     line_coot += f"second chain {atom_ligand['ligand']['chain']} resi {atom_ligand['ligand']['sequence']} inse {atom_ligand['ligand']['icode']} atom {atom_ligand['ligand']['name']} "
+                    line_buster += f" {atom_ligand['ligand']['chain']}|{atom_ligand['ligand']['sequence_icode']}:{atom_ligand['ligand']['name']}"
                     atom_selection_2_phenix = f"chain {atom_ligand['ligand']['chain']} and resname {atom_ligand['ligand']['residue']} and resid {atom_ligand['ligand']['sequence_icode']} and name {atom_ligand['ligand']['name']}"
                     if atom_ligand["ligand"]["altloc"]:  # not for Coot
                         line += f"altecode {atom_ligand['ligand']['altloc']} "
+                        line_buster += f".{atom_ligand['ligand']['altloc']}"
                         atom_selection_2_phenix += (
                             f" and altloc {atom_ligand['ligand']['altloc']}"
                         )
@@ -213,16 +225,17 @@ def main(
                         and not atom_ligand["ligand"]["symmetry"]
                     ):
                         outputLinesCoot.append(line_coot + "\n")
-                    # restaints for phenix.refine: atoms with symmetry records are not included
-                    if not atom_ligand["ligand"]["symmetry"]:
-                        if (
-                            len(atom_ligand["distance"]) < 2
-                            or not phenix_variant
-                            or (
-                                len(atom_ligand["distance"]) >= 2
-                                and i + 1 == phenix_variant
-                            )
-                        ):
+                    if (
+                        len(atom_ligand["distance"]) < 2
+                        or not distance_variant
+                        or (
+                            len(atom_ligand["distance"]) >= 2
+                            and i + 1 == distance_variant
+                        )
+                    ):
+                        outputLinesBuster.append(line_buster + "\n")
+                        # restaints for phenix.refine: atoms with symmetry records are not included
+                        if not atom_ligand["ligand"]["symmetry"]:
                             outputLinesPhenix.append("  bond {\n")
                             outputLinesPhenix.append("    action = *add\n")
                             outputLinesPhenix.append(
@@ -239,7 +252,7 @@ def main(
                             )
                             outputLinesPhenix.append("  }\n")
                     if j >= len(ligand["base"]) and stPath:
-                        # create a mmCIF link, it's from 'pdb', i.e. neighbourhood
+                        # create a LINK /_struct_conn in PDB-mmCIF, it's from 'pdb', i.e. neighbourhood
                         con = gemmi.Connection()
                         con.name = "metalcoord" + str(i_con)
                         con.type = gemmi.ConnectionType.MetalC
@@ -317,9 +330,12 @@ def main(
                 # ligand1
                 line += f"first chain {atom_ligands['ligand1']['chain']} resi {atom_ligands['ligand1']['sequence']} inse {atom_ligands['ligand1']['icode']} atom {atom_ligands['ligand1']['name']} "
                 line_coot = line
+                line_buster = f"add angle {atom_ligands['angle']}, {atom_ligands['std']} "
+                line_buster += f"{atom_ligands['ligand1']['chain']}|{atom_ligands['ligand1']['sequence_icode']}:{atom_ligands['ligand1']['name']}"
                 atom_selection_1_phenix = f"chain {atom_ligands['ligand1']['chain']} and resname {atom_ligands['ligand1']['residue']} and resid {atom_ligands['ligand1']['sequence_icode']} and name {atom_ligands['ligand1']['name']}"
                 if atom_ligands["ligand1"]["altloc"]:
                     line += f"altecode {atom_ligands['ligand1']['altloc']} "
+                    line_buster += f".{atom_ligands['ligand1']['altloc']}"
                     atom_selection_1_phenix += (
                         f" and altloc {atom_ligands['ligand1']['altloc']}"
                     )
@@ -328,16 +344,20 @@ def main(
                 # metal
                 line += f"next chain {atom_metal['chain']} resi {atom_metal['sequence']} inse {atom_metal['icode']} atom {atom_metal['metal']} "
                 line_coot += f"next chain {atom_metal['chain']} resi {atom_metal['sequence']} inse {atom_metal['icode']} atom {atom_metal['metal']} "
+                line_buster += f" {atom_metal['chain']}|{atom_metal['sequence_icode']}:{atom_metal['metal']}"
                 atom_selection_2_phenix = f"chain {atom_metal['chain']} and resname {atom_metal['residue']} and resid {atom_metal['sequence_icode']} and name {atom_metal['metal']}"
                 if atom_metal["altloc"]:
                     line += f"altecode {atom_metal['altloc']} "
+                    line_buster += f".{atom_metal['altloc']}"
                     atom_selection_2_phenix += f" and altloc {atom_metal['altloc']}"
                 # ligand2
                 line += f"next chain {atom_ligands['ligand2']['chain']} resi {atom_ligands['ligand2']['sequence']} inse {atom_ligands['ligand2']['icode']} atom {atom_ligands['ligand2']['name']} "
                 line_coot += f"next chain {atom_ligands['ligand2']['chain']} resi {atom_ligands['ligand2']['sequence']} inse {atom_ligands['ligand2']['icode']} atom {atom_ligands['ligand2']['name']} "
+                line_buster += f" {atom_ligands['ligand2']['chain']}|{atom_ligands['ligand2']['sequence_icode']}:{atom_ligands['ligand2']['name']}"
                 atom_selection_3_phenix = f"chain {atom_ligands['ligand2']['chain']} and resname {atom_ligands['ligand2']['residue']} and resid {atom_ligands['ligand2']['sequence_icode']} and name {atom_ligands['ligand2']['name']}"
                 if atom_ligands["ligand2"]["altloc"]:
                     line += f"altecode {atom_ligands['ligand2']['altloc']} "
+                    line_buster += f".{atom_ligands['ligand2']['altloc']}"
                     atom_selection_3_phenix += (
                         f" and altloc {atom_ligands['ligand2']['altloc']}"
                     )
@@ -348,6 +368,7 @@ def main(
                 line += f" type 0"
                 # print(line)
                 outputLines.append(line + "\n")
+                outputLinesBuster.append(line_buster + "\n")
                 # restaints for Coot cannot include atoms with altloc and symmetry identifiers
                 if (
                     not atom_metal["altloc"]
@@ -398,6 +419,8 @@ def main(
         f.writelines(outputLines)
     with open(outputRestraintsCootPath, "w") as f:
         f.writelines(outputLinesCoot)
+    with open(outputPrefix + "_buster.txt", "w") as f:
+        f.writelines(outputLinesBuster)
     with open(outputRestraintsPhenixPath, "w") as f:
         f.writelines(outputLinesPhenix)
     if stPath:
@@ -462,11 +485,15 @@ if __name__ == "__main__":
         metavar="JSON_EQUIVALENTS",
     )
     parser.add_argument(
-        "--phenix-variant",
-        help="Which variant of a restraint should be used in restraints for Phenix. (Default: 1)",
+        "--distance-variant",
+        help=(
+            "If more variants for the same distance restraint possible, which variant of a restraint"
+            " should be written in restraints for Phenix and Buster, e.g. 1 will select the first variant,"
+            " 2 will select the second variant, etc. (Default: all variants will be written)."
+        ),
         type=int,
         default=None,
-        metavar="PHENIX_VARIANT",
+        metavar="DISTANCE_VARIANT",
     )
 
     args = parser.parse_args()
@@ -475,8 +502,8 @@ if __name__ == "__main__":
     outputPrefix = args.o
     jsonEquivalentsPath = args.e
     keep_links = args.keep_links
-    phenix_variant = args.phenix_variant
+    distance_variant = args.distance_variant
 
     main(
-        jsonPaths, stPath, outputPrefix, jsonEquivalentsPath, keep_links, phenix_variant
+        jsonPaths, stPath, outputPrefix, jsonEquivalentsPath, keep_links, distance_variant
     )
