@@ -330,7 +330,7 @@ def main(
                 # ligand1
                 line += f"first chain {atom_ligands['ligand1']['chain']} resi {atom_ligands['ligand1']['sequence']} inse {atom_ligands['ligand1']['icode']} atom {atom_ligands['ligand1']['name']} "
                 line_coot = line
-                line_buster = f"add angle {atom_ligands['angle']}, {atom_ligands['std']} "
+                line_buster = f"add angle {atom_ligands['angle']} {atom_ligands['std']} "
                 line_buster += f"{atom_ligands['ligand1']['chain']}|{atom_ligands['ligand1']['sequence_icode']}:{atom_ligands['ligand1']['name']}"
                 atom_selection_1_phenix = f"chain {atom_ligands['ligand1']['chain']} and resname {atom_ligands['ligand1']['residue']} and resid {atom_ligands['ligand1']['sequence_icode']} and name {atom_ligands['ligand1']['name']}"
                 if atom_ligands["ligand1"]["altloc"]:
