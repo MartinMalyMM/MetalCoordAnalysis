@@ -561,7 +561,7 @@ SEQRES  22 A  276  GLU PRO HIS
 HET     CU  A 401       1                                                       
 HET     CU  A 402       1                                                       
 HET     CU  A 403       1                                                       
-HET     CU  A 404       1                                                       
+HET     CU  A 404C      1                                                       
 HET     FE  A 501       1                                                       
 HET     NA  A 512       1                                                       
 HET     NA  A 513       1                                                       
@@ -607,7 +607,7 @@ SHEET    1   F 2 TRP A 240  ALA A 241  0
 SHEET    2   F 2 VAL A 257  ILE A 258 -1  O  ILE A 258   N  TRP A 240           
 LINK         O   GLU A  80                NA    NA A 512     1555   1555  2.79  
 LINK         ND1 HIS A 231                CU    CU A 401     1555   1555  1.97  
-LINK         NE2 HIS A 234                CU    CU A 404     1555   1555  1.97  
+LINK         NE2 HIS A 234                CU    CU A 404C    1555   1555  1.97  
 LINK         NE2 HIS A 236                CU    CU A 403     1555   1555  2.03  
 LINK         NE2 HIS A 287                CU    CU A 403     1555   1555  2.37  
 LINK         SG  CYS A 288                CU    CU A 401     1555   1555  2.19  
@@ -615,7 +615,7 @@ LINK         NE2 HIS A 289                CU    CU A 402     1555   1555  2.09
 LINK         ND1 HIS A 293                CU    CU A 401     1555   1555  1.93  
 LINK        CU    CU A 402                 O   HOH A 701     1555   1555  2.66  
 LINK        CU    CU A 403                 O   HOH A 701     1555   1555  2.30  
-LINK        CU    CU A 404                 O   HOH A 930     1555   1555  2.63  
+LINK        CU    CU A 404C                O   HOH A 930     1555   1555  2.63  
 LINK        NA    NA A 512                 O1  PGE A 612     1555   1555  2.95  
 LINK        NA    NA A 512                 O3  PGE A 612     1555   1555  2.95  
 LINK        NA    NA A 512                 O4  PGE A 612     1555   1555  3.02  
@@ -2783,7 +2783,7 @@ TER    2134      HIS A 317
 HETATM 2135 CU    CU A 401     -18.540 -15.506 -28.548  1.00 26.48          CU  
 HETATM 2136 CU    CU A 402      -5.571 -16.915 -29.146  1.00 29.53          CU  
 HETATM 2137 CU  A CU A 403      -6.832 -14.144 -33.044  0.70 40.87          CU  
-HETATM 2138 CU  B CU A 404      -4.359 -13.354 -30.213  0.30 48.23          CU  
+HETATM 2138 CU  B CU A 404C     -4.359 -13.354 -30.213  0.30 48.23          CU  
 HETATM 2139 FE    FE A 501     -22.097   0.615 -43.580  0.40 83.38          FE  
 HETATM 2140 NA    NA A 512     -20.401  14.037 -20.241  1.00 49.80          NA  
 HETATM 2141 NA    NA A 513      -9.092  -3.558 -46.910  1.00 68.78          NA  

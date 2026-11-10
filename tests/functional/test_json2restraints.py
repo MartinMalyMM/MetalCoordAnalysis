@@ -7,9 +7,9 @@ from tutorial.json2restraints import main as json2restraints_main
 
 def _assert_exte_dist_syntax(text_output: str) -> None:
     pattern = (
-        r"^exte dist first chain [A-Za-z0-9]+ resi \d+ inse \. atom "
+        r"^exte dist first chain [A-Za-z0-9]+ resi \d+ inse [A-Za-z.] atom "
         r"[A-Za-z0-9]+(?: altecode [A-Za-z0-9])? "
-        r"second chain [A-Za-z0-9]+ resi \d+ inse \. atom "
+        r"second chain [A-Za-z0-9]+ resi \d+ inse [A-Za-z.] atom "
         r"[A-Za-z0-9]+(?: altecode [A-Za-z0-9])? "
         r"value [0-9]+(?:\.[0-9]+)? sigma [0-9]+(?:\.[0-9]+)? "
         r"(?:symm y )?"
@@ -26,11 +26,11 @@ def _assert_exte_dist_syntax(text_output: str) -> None:
 
 def _assert_exte_angle_syntax(text_output: str) -> None:
     pattern = (
-        r"^exte angle first chain [A-Za-z0-9]+ resi \d+ inse \. atom "
+        r"^exte angle first chain [A-Za-z0-9]+ resi \d+ inse [A-Za-z.] atom "
         r"[A-Za-z0-9]+(?: altecode [A-Za-z0-9])?(?: symm y)? "
-        r"next chain [A-Za-z0-9]+ resi \d+ inse \. atom "
+        r"next chain [A-Za-z0-9]+ resi \d+ inse [A-Za-z.] atom "
         r"[A-Za-z0-9]+(?: altecode [A-Za-z0-9])? "
-        r"next chain [A-Za-z0-9]+ resi \d+ inse \. atom "
+        r"next chain [A-Za-z0-9]+ resi \d+ inse [A-Za-z.] atom "
         r"[A-Za-z0-9]+(?: altecode [A-Za-z0-9])?(?: symm y)? "
         r"value [0-9]+(?:\.[0-9]+)? sigma [0-9]+(?:\.[0-9]+)? "
         r"(?:type [0-9]+)?"
@@ -109,17 +109,23 @@ def _assert_json_matches_txt(output_prefix: Path) -> None:
         assert any(_flatten(r) <= f for f in json_flat), f"Not found in the JSON file: {line}"
 
 
-def test_json2restraints_3kw8(tmp_path):
+@pytest.fixture(scope="module")
+def output_prefix(tmp_path_factory) -> Path:
+    """Run json2restraints once for 3kw8; the generated files are shared by all tests in this module."""
     project_root = Path(__file__).resolve().parents[2]
     json_path = project_root / "tests" / "data" / "results" / "3kw8_edit_alte_CU-d04.json"
     pdb_path = project_root / "tests" / "data" / "models" / "3kw8_edit_alte.pdb"
-    output_prefix = tmp_path / "3kw8_mc_restraints"
+    output_prefix = tmp_path_factory.mktemp("json2restraints") / "3kw8_mc_restraints"
 
     json2restraints_main(
         jsonPaths=[str(json_path)],
         stPath=str(pdb_path),
         outputPrefix=str(output_prefix),
     )
+    return output_prefix
+
+
+def test_json2restraints_3kw8(output_prefix):
 
     expected_files = [
         output_prefix.with_suffix(".txt"),
@@ -155,17 +161,64 @@ def test_json2restraints_3kw8(tmp_path):
         assert len(r["restr"]["specs"]) == 2
     for r in angl_json:
         assert len(r["restr"]["specs"]) == 3
-    assert any(
-        spec.get("alt") == "B"
+
+    # A404C CU altecode B: insertion code and altloc must be propagated
+    specs_404 = [
+        spec
         for r in restraints_json
         for specs in r["restr"]["specs"]
         for spec in specs
-    ), "No restraint with altloc B in the JSON file"
+        if spec["resi"] == 404
+    ]
+    assert specs_404, "No restraint with A404 CU in the JSON file"
+    for spec in specs_404:
+        assert spec.get("ins") == "C" and spec.get("alt") == "B", spec
+    assert "resi 404 inse C atom CU altecode B" in output_restraints
+    output_buster = output_prefix.with_name(output_prefix.name + "_buster.txt").read_text(encoding="utf-8")
+    assert "A|404C:CU.B" in output_buster
 
     output_yaml = output_prefix.with_suffix(".yaml").read_text(encoding="utf-8")
     assert "exte_files" in output_yaml
     assert str(output_prefix.with_suffix(".json")) in output_yaml
 
-    _assert_json_matches_txt(output_prefix)
+
+def test_servalcat_keyword_file(output_prefix):
     run_servalcat_refine_geom(output_prefix)
+
+
+def test_servalcat_json(output_prefix):
+    try:
+        from servalcat.refine.refine import RefineConfig
+    except ImportError:
+        pytest.skip("servalcat is not available; skipping JSON restraints validation")
+    if "exte_files" not in RefineConfig.__dataclass_fields__:
+        pytest.skip("servalcat is too old for JSON external restraints (no refine.exte_files)")
+    _assert_json_matches_txt(output_prefix)
     run_servalcat_refine_geom(output_prefix, use_config=True)
+
+
+def test_phenix_params(output_prefix: Path) -> None:
+    """Validate the .params file against the Phenix master parameters (no refinement run)
+    and check that every atom selection matches exactly one atom in the model."""
+    try:
+        import iotbx.pdb
+        import iotbx.phil
+        from mmtbx.monomer_library.pdb_interpretation import geometry_restraints_edits_str
+    except ImportError:
+        pytest.skip("iotbx is not available; skipping Phenix restraints validation")
+
+    # Phenix definition of the parameters (names, types, allowed values) for the .params file
+    master = iotbx.phil.parse(f"refinement.geometry_restraints.edits {{\n{geometry_restraints_edits_str}\n}}")
+    params = iotbx.phil.parse(file_name=str(output_prefix.with_suffix(".params")))
+    working, unused = master.fetch(sources=[params], track_unused_definitions=True)
+    assert not unused, f"Unknown Phenix parameters: {[str(u) for u in unused]}"
+    edits = working.extract().refinement.geometry_restraints.edits
+    assert edits.bond and edits.angle, "No bond or angle restraints in the .params file"
+
+    model = iotbx.pdb.input(file_name=str(output_prefix.with_suffix(".pdb")))
+    cache = model.construct_hierarchy().atom_selection_cache()
+    for r in edits.bond + edits.angle:
+        for sel in (r.atom_selection_1, r.atom_selection_2, getattr(r, "atom_selection_3", None)):
+            if sel is not None:
+                n = cache.selection(sel).count(True)
+                assert n == 1, f"Phenix selection matches {n} atoms: {sel}"
