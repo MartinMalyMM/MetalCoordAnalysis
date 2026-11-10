@@ -1,3 +1,4 @@
+import json
 import re
 from pathlib import Path
 import pytest
@@ -43,7 +44,12 @@ def _assert_exte_angle_syntax(text_output: str) -> None:
         assert re.match(pattern, line), f"Unexpected exte angle syntax: {line}"
 
 
-def run_servalcat_refine_geom(output_prefix: Path) -> None:
+def run_servalcat_refine_geom(output_prefix: Path, use_config: bool = False) -> None:
+    """Run servalcat refine_geom with the generated restraints.
+
+    use_config=False: restraints from the .txt keyword file (--keyword_file)
+    use_config=True:  restraints from the .json file via the .yaml config (--config)
+    """
     try:
         from servalcat.refine import refine_geom as servalcat_refine_geom
     except ModuleNotFoundError:
@@ -51,20 +57,56 @@ def run_servalcat_refine_geom(output_prefix: Path) -> None:
     except Exception as exc:
         pytest.skip(f"servalcat import failed: {exc!r}")
 
+    if use_config:
+        restraints_args = ["--config", str(output_prefix.with_suffix(".yaml"))]
+        run_suffix = "_refine_geom_config"
+    else:
+        restraints_args = ["--keyword_file", str(output_prefix.with_suffix(".txt"))]
+        run_suffix = "_refine_geom"
+
     try:
         args = servalcat_refine_geom.parse_args([
             "--model",
             str(output_prefix.with_suffix(".mmcif")),
-            "--keyword_file",
-            str(output_prefix.with_suffix(".txt")),
+            *restraints_args,
             "--output_prefix",
-            str(output_prefix) + "_refine_geom",
+            str(output_prefix) + run_suffix,
             "--ncycle",
             "0",
         ])
         servalcat_refine_geom.main(args)
     except Exception as exc:
-        pytest.fail(f"servalcat refine_geom failed: {exc!r}")
+        pytest.fail(f"servalcat refine_geom ({' '.join(restraints_args)}) failed: {exc!r}")
+
+
+def _flatten(obj, path=()) -> set:
+    """Flatten nested dicts/lists into a set of (path, value) pairs.
+    For lists, (path, length) is included too, so lists must match in length."""
+    if isinstance(obj, dict):
+        return set().union(*(_flatten(v, path + (k,)) for k, v in obj.items()))
+    if isinstance(obj, list):
+        return {(path, len(obj))}.union(*(_flatten(v, path + (i,)) for i, v in enumerate(obj)))
+    return {(path, obj)}
+
+
+def _assert_json_matches_txt(output_prefix: Path) -> None:
+    """Every restraint servalcat parses from the .txt keyword file must be present in the JSON file.
+    The JSON file may contain more information (extra keys or extra restraints) than the .txt file."""
+    try:
+        from servalcat.refmac import refmac_keywords
+    except ModuleNotFoundError:
+        pytest.skip("servalcat is not available; skipping JSON/keyword comparison")
+    except Exception as exc:
+        pytest.skip(f"servalcat import failed: {exc!r}")
+
+    restraints_json = json.loads(output_prefix.with_suffix(".json").read_text(encoding="utf-8"))
+    json_flat = [_flatten(r) for r in restraints_json]
+    for line in output_prefix.with_suffix(".txt").read_text(encoding="utf-8").splitlines():
+        if not line.startswith("exte "):
+            continue
+        r = refmac_keywords.read_exte(line.split("#")[0].split())
+        r.pop("defaults", None)
+        assert any(_flatten(r) <= f for f in json_flat), f"Not found in the JSON file: {line}"
 
 
 def test_json2restraints_3kw8(tmp_path):
@@ -81,6 +123,8 @@ def test_json2restraints_3kw8(tmp_path):
 
     expected_files = [
         output_prefix.with_suffix(".txt"),
+        output_prefix.with_suffix(".json"),
+        output_prefix.with_suffix(".yaml"),
         output_prefix.with_name(output_prefix.name + "_coot.txt"),
         output_prefix.with_name(output_prefix.name + "_buster.txt"),
         output_prefix.with_suffix(".params"),
@@ -102,4 +146,26 @@ def test_json2restraints_3kw8(tmp_path):
     assert "#" not in output_coot
     assert "symm y" not in output_coot
 
+    restraints_json = json.loads(output_prefix.with_suffix(".json").read_text(encoding="utf-8"))
+    dist_json = [r for r in restraints_json if r["rest_type"] == "dist"]
+    angl_json = [r for r in restraints_json if r["rest_type"] == "angl"]
+    assert len(dist_json) >= output_restraints.count("exte dist")
+    assert len(angl_json) >= output_restraints.count("exte angle")
+    for r in dist_json:
+        assert len(r["restr"]["specs"]) == 2
+    for r in angl_json:
+        assert len(r["restr"]["specs"]) == 3
+    assert any(
+        spec.get("alt") == "B"
+        for r in restraints_json
+        for specs in r["restr"]["specs"]
+        for spec in specs
+    ), "No restraint with altloc B in the JSON file"
+
+    output_yaml = output_prefix.with_suffix(".yaml").read_text(encoding="utf-8")
+    assert "exte_files" in output_yaml
+    assert str(output_prefix.with_suffix(".json")) in output_yaml
+
+    _assert_json_matches_txt(output_prefix)
     run_servalcat_refine_geom(output_prefix)
+    run_servalcat_refine_geom(output_prefix, use_config=True)

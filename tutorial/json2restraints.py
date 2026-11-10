@@ -9,6 +9,11 @@ The script creates these files:
 
  - mc_restraints.txt is a keyword file for Servalcat or Refmacat containing the external bond
    length and angle restraints based on a coordination class with the lowest procrustes score.
+ - mc_restraints.json is a keyword file for Servalcat in the new format containing the external bond
+   length and angle restraints based on a coordination class with the lowest procrustes score.
+ - mc_restraints.yaml is a configuration file for Servalcat specifying mc_restraints.json as a file
+   with external restraints. It can be used as: servalcat refine_xtal_norefmac ... --config mc_restraints.yaml
+   Note that the path to mc_restraints.json is relative to the directory where Servalcat is run.
  - mc_restraints_coot.txt is the same keyword file in a simplified format which is compatible with Coot.
    It can be loaded in Coot using Calculate -> Modules -> Restraints and then Restraints -> Read Refmac Extra Restraints.
    The file does not include restraints for atoms with alternative conformations and atoms from symmetry-related molecules.
@@ -32,7 +37,7 @@ ccp4-python json2restraints.py -h
 """
 
 __author__ = "Martin Malý"
-__date__ = "2026-08-16"
+__date__ = "2026-11-10"
 
 import json
 
@@ -40,6 +45,20 @@ try:
     import gemmi
 except:
     raise SystemExit("ERROR: module GEMMI not found.\n")
+
+
+def servalcat_atom_spec(chain, resi, icode, name, altloc=None, symm=False):
+    """Atom specification for external restraints in the Servalcat JSON format.
+    Mirrors what servalcat.refmac.refmac_keywords.parse_atom_spec() produces
+    from the corresponding Refmac keyword."""
+    spec = {"chain": chain, "resi": int(resi), "names": [name]}
+    if icode and icode != ".":
+        spec["ins"] = icode
+    if altloc:
+        spec["alt"] = altloc
+    if symm:
+        spec["symm"] = True
+    return spec
 
 
 def main(
@@ -71,6 +90,8 @@ def main(
         None"""
 
     outputRestraintsPath = outputPrefix + ".txt"
+    outputRestraintsJsonPath = outputPrefix + ".json"
+    outputRestraintsYamlPath = outputPrefix + ".yaml"
     outputRestraintsCootPath = outputPrefix + "_coot.txt"
     outputRestraintsPhenixPath = outputPrefix + ".params"
     outputMmcifPath = outputPrefix + ".mmcif"
@@ -150,6 +171,7 @@ def main(
                         ]
 
     outputLines = []
+    outputRestraintsJson = []
     outputLinesCoot = []
     outputLinesPhenix = []
     outputLinesBuster = []
@@ -218,6 +240,34 @@ def main(
                         line += f" # variant {str(i + 1)}"
                     # print(line)
                     outputLines.append(line + "\n")
+                    restr_json = {
+                        "specs": [
+                            [
+                                servalcat_atom_spec(
+                                    atom_metal["chain"],
+                                    atom_metal["sequence"],
+                                    atom_metal["icode"],
+                                    atom_metal["metal"],
+                                    atom_metal["altloc"],
+                                )
+                            ],
+                            [
+                                servalcat_atom_spec(
+                                    atom_ligand["ligand"]["chain"],
+                                    atom_ligand["ligand"]["sequence"],
+                                    atom_ligand["ligand"]["icode"],
+                                    atom_ligand["ligand"]["name"],
+                                    atom_ligand["ligand"]["altloc"],
+                                )
+                            ],
+                        ],
+                        "value": atom_ligand["distance"][i],
+                        "sigma": atom_ligand["std"][i],
+                    }
+                    if atom_ligand["ligand"]["symmetry"]:
+                        restr_json["symm"] = True
+                    restr_json["type"] = 0 if i == 0 else 1
+                    outputRestraintsJson.append({"rest_type": "dist", "restr": restr_json})
                     # restaints for Coot cannot include atoms with altloc and symmetry identifiers
                     if (
                         not atom_metal["altloc"]
@@ -368,6 +418,47 @@ def main(
                 line += f" type 0"
                 # print(line)
                 outputLines.append(line + "\n")
+                outputRestraintsJson.append(
+                    {
+                        "rest_type": "angl",
+                        "restr": {
+                            "specs": [
+                                [
+                                    servalcat_atom_spec(
+                                        atom_ligands["ligand1"]["chain"],
+                                        atom_ligands["ligand1"]["sequence"],
+                                        atom_ligands["ligand1"]["icode"],
+                                        atom_ligands["ligand1"]["name"],
+                                        atom_ligands["ligand1"]["altloc"],
+                                        atom_ligands["ligand1"]["symmetry"],
+                                    )
+                                ],
+                                [
+                                    servalcat_atom_spec(
+                                        atom_metal["chain"],
+                                        atom_metal["sequence"],
+                                        atom_metal["icode"],
+                                        atom_metal["metal"],
+                                        atom_metal["altloc"],
+                                    )
+                                ],
+                                [
+                                    servalcat_atom_spec(
+                                        atom_ligands["ligand2"]["chain"],
+                                        atom_ligands["ligand2"]["sequence"],
+                                        atom_ligands["ligand2"]["icode"],
+                                        atom_ligands["ligand2"]["name"],
+                                        atom_ligands["ligand2"]["altloc"],
+                                        atom_ligands["ligand2"]["symmetry"],
+                                    )
+                                ],
+                            ],
+                            "value": round(atom_ligands["angle"], 2),
+                            "sigma": round(atom_ligands["std"], 2),
+                            "type": 0,
+                        },
+                    }
+                )
                 outputLinesBuster.append(line_buster + "\n")
                 # restaints for Coot cannot include atoms with altloc and symmetry identifiers
                 if (
@@ -417,6 +508,16 @@ def main(
     outputLinesPhenix.append("}\n")
     with open(outputRestraintsPath, "w") as f:
         f.writelines(outputLines)
+    # Servalcat JSON format
+    with open(outputRestraintsJsonPath, "w") as f:
+        f.write("[\n")
+        f.write(",\n".join(json.dumps(r) for r in outputRestraintsJson))
+        f.write("\n]\n")
+    # Servalcat configuration file (--config) pointing to the JSON restraints file
+    with open(outputRestraintsYamlPath, "w") as f:
+        f.write("refine:\n")
+        f.write("  exte_files:\n")
+        f.write(f"    - {json.dumps(outputRestraintsJsonPath)}\n")
     with open(outputRestraintsCootPath, "w") as f:
         f.writelines(outputLinesCoot)
     with open(outputPrefix + "_buster.txt", "w") as f:
