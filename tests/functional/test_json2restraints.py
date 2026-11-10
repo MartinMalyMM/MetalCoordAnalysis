@@ -82,6 +82,7 @@ def test_json2restraints_3kw8(tmp_path):
     expected_files = [
         output_prefix.with_suffix(".txt"),
         output_prefix.with_name(output_prefix.name + "_coot.txt"),
+        output_prefix.with_name(output_prefix.name + "_buster.txt"),
         output_prefix.with_suffix(".params"),
         output_prefix.with_suffix(".mmcif"),
         output_prefix.with_suffix(".pdb"),
