@@ -1,224 +1,224 @@
 import json
 import re
+import warnings
 from pathlib import Path
+import gemmi
 import pytest
 from tutorial.json2restraints import main as json2restraints_main
 
+# Optional tools: the checks using them are run only if they are available
+try:
+    # the import order matters: servalcat.refine.refine imported first leads to a circular import
+    from omegaconf import OmegaConf
+    from servalcat import ext
+    from servalcat.refmac import refmac_keywords
 
-def _assert_exte_dist_syntax(text_output: str) -> None:
-    pattern = (
-        r"^exte dist first chain [A-Za-z0-9]+ resi \d+ inse [A-Za-z.] atom "
-        r"[A-Za-z0-9]+(?: altecode [A-Za-z0-9])? "
-        r"second chain [A-Za-z0-9]+ resi \d+ inse [A-Za-z.] atom "
-        r"[A-Za-z0-9]+(?: altecode [A-Za-z0-9])? "
-        r"value [0-9]+(?:\.[0-9]+)? sigma [0-9]+(?:\.[0-9]+)? "
-        r"(?:symm y )?"
-        r"(?:type [0-9]+)?"
-        r"(?: # .*?)?$"
-    )
+    try:
+        from servalcat.refine import exte
+    except ImportError:
+        from servalcat.refmac import exte  # older servalcat versions
+    from servalcat.refine.refine import RefineConfig, RefineParams
 
-    dist_lines = [line.strip() for line in text_output.splitlines() if line.startswith("exte dist ")]
-    assert dist_lines, "No exte dist lines were written"
+    SERVALCAT_AVAIL = True
+    # older servalcat versions (e.g. 0.4.142 in CCP4 9) do not support external restraints in JSON
+    SERVALCAT_JSON_AVAIL = "exte_files" in RefineConfig.__dataclass_fields__
+except ImportError:
+    SERVALCAT_AVAIL = SERVALCAT_JSON_AVAIL = False
+try:
+    import iotbx.pdb
+    import iotbx.phil
+    from mmtbx.monomer_library.pdb_interpretation import geometry_restraints_edits_str
 
-    for line in dist_lines:
-        assert re.match(pattern, line), f"Unexpected exte dist syntax: {line}"
-
-
-def _assert_exte_angle_syntax(text_output: str) -> None:
-    pattern = (
-        r"^exte angle first chain [A-Za-z0-9]+ resi \d+ inse [A-Za-z.] atom "
-        r"[A-Za-z0-9]+(?: altecode [A-Za-z0-9])?(?: symm y)? "
-        r"next chain [A-Za-z0-9]+ resi \d+ inse [A-Za-z.] atom "
-        r"[A-Za-z0-9]+(?: altecode [A-Za-z0-9])? "
-        r"next chain [A-Za-z0-9]+ resi \d+ inse [A-Za-z.] atom "
-        r"[A-Za-z0-9]+(?: altecode [A-Za-z0-9])?(?: symm y)? "
-        r"value [0-9]+(?:\.[0-9]+)? sigma [0-9]+(?:\.[0-9]+)? "
-        r"(?:type [0-9]+)?"
-        r"(?: # .*?)?$"
-    )
-
-    angle_lines = [line.strip() for line in text_output.splitlines() if line.startswith("exte angle ")]
-    assert angle_lines, "No exte angle lines were written"
-
-    for line in angle_lines:
-        assert re.match(pattern, line), f"Unexpected exte angle syntax: {line}"
+    IOTBX_AVAIL = True
+except ImportError:
+    IOTBX_AVAIL = False
 
 
-def run_servalcat_refine_geom(output_prefix: Path, use_config: bool = False) -> None:
-    """Run servalcat refine_geom with the generated restraints.
+EXTE_DIST_PATTERN = (
+    r"^exte dist first chain [A-Za-z0-9]+ resi \d+ inse [A-Za-z.] atom "
+    r"[A-Za-z0-9]+(?: altecode [A-Za-z0-9])? "
+    r"second chain [A-Za-z0-9]+ resi \d+ inse [A-Za-z.] atom "
+    r"[A-Za-z0-9]+(?: altecode [A-Za-z0-9])? "
+    r"value [0-9]+(?:\.[0-9]+)? sigma [0-9]+(?:\.[0-9]+)? "
+    r"(?:symm y )?"
+    r"(?:type [0-9]+)?"
+    r"(?: # .*?)?$"
+)
+EXTE_ANGLE_PATTERN = (
+    r"^exte angle first chain [A-Za-z0-9]+ resi \d+ inse [A-Za-z.] atom "
+    r"[A-Za-z0-9]+(?: altecode [A-Za-z0-9])?(?: symm y)? "
+    r"next chain [A-Za-z0-9]+ resi \d+ inse [A-Za-z.] atom "
+    r"[A-Za-z0-9]+(?: altecode [A-Za-z0-9])? "
+    r"next chain [A-Za-z0-9]+ resi \d+ inse [A-Za-z.] atom "
+    r"[A-Za-z0-9]+(?: altecode [A-Za-z0-9])?(?: symm y)? "
+    r"value [0-9]+(?:\.[0-9]+)? sigma [0-9]+(?:\.[0-9]+)? "
+    r"(?:type [0-9]+)?"
+    r"(?: # .*?)?$"
+)
 
-    use_config=False: restraints from the .txt keyword file (--keyword_file)
-    use_config=True:  restraints from the .json file via the .yaml config (--config)
+
+def flatten(obj, path=()) -> set:
+    """Flatten nested dicts/lists into a set of (path, value) pairs, list lengths included.
+    Restraint A is contained in restraint B (B may have extra keys) if flatten(A) <= flatten(B).
+    This is used to check that every restraint parsed by servalcat from the .txt keyword file is in the JSON file.
     """
-    try:
-        from servalcat.refine import refine_geom as servalcat_refine_geom
-    except ModuleNotFoundError:
-        pytest.skip("servalcat is not available; skipping refine_geom validation")
-    except Exception as exc:
-        pytest.skip(f"servalcat import failed: {exc!r}")
-
-    if use_config:
-        restraints_args = ["--config", str(output_prefix.with_suffix(".yaml"))]
-        run_suffix = "_refine_geom_config"
-    else:
-        restraints_args = ["--keyword_file", str(output_prefix.with_suffix(".txt"))]
-        run_suffix = "_refine_geom"
-
-    try:
-        args = servalcat_refine_geom.parse_args([
-            "--model",
-            str(output_prefix.with_suffix(".mmcif")),
-            *restraints_args,
-            "--output_prefix",
-            str(output_prefix) + run_suffix,
-            "--ncycle",
-            "0",
-        ])
-        servalcat_refine_geom.main(args)
-    except Exception as exc:
-        pytest.fail(f"servalcat refine_geom ({' '.join(restraints_args)}) failed: {exc!r}")
-
-
-def _flatten(obj, path=()) -> set:
-    """Flatten nested dicts/lists into a set of (path, value) pairs.
-    For lists, (path, length) is included too, so lists must match in length."""
     if isinstance(obj, dict):
-        return set().union(*(_flatten(v, path + (k,)) for k, v in obj.items()))
+        return set().union(*(flatten(v, path + (k,)) for k, v in obj.items()))
     if isinstance(obj, list):
-        return {(path, len(obj))}.union(*(_flatten(v, path + (i,)) for i, v in enumerate(obj)))
+        return {(path, len(obj))}.union(*(flatten(v, path + (i,)) for i, v in enumerate(obj)))
     return {(path, obj)}
 
 
-def _assert_json_matches_txt(output_prefix: Path) -> None:
-    """Every restraint servalcat parses from the .txt keyword file must be present in the JSON file.
-    The JSON file may contain more information (extra keys or extra restraints) than the .txt file."""
-    try:
-        from servalcat.refmac import refmac_keywords
-    except ModuleNotFoundError:
-        pytest.skip("servalcat is not available; skipping JSON/keyword comparison")
-    except Exception as exc:
-        pytest.skip(f"servalcat import failed: {exc!r}")
-
-    restraints_json = json.loads(output_prefix.with_suffix(".json").read_text(encoding="utf-8"))
-    json_flat = [_flatten(r) for r in restraints_json]
-    for line in output_prefix.with_suffix(".txt").read_text(encoding="utf-8").splitlines():
-        if not line.startswith("exte "):
-            continue
-        r = refmac_keywords.read_exte(line.split("#")[0].split())
-        r.pop("defaults", None)
-        assert any(_flatten(r) <= f for f in json_flat), f"Not found in the JSON file: {line}"
-
-
-@pytest.fixture(scope="module")
-def output_prefix(tmp_path_factory) -> Path:
-    """Run json2restraints once for 3kw8; the generated files are shared by all tests in this module."""
-    project_root = Path(__file__).resolve().parents[2]
-    json_path = project_root / "tests" / "data" / "results" / "3kw8_edit_alte_CU-d04.json"
-    pdb_path = project_root / "tests" / "data" / "models" / "3kw8_edit_alte.pdb"
-    output_prefix = tmp_path_factory.mktemp("json2restraints") / "3kw8_mc_restraints"
+@pytest.mark.parametrize("case", ["3kw8", "1e8a"])
+def test_json2restraints(case, tmp_path):
+    data = Path(__file__).resolve().parents[2] / "tests" / "data"
+    if case == "3kw8":
+        # Cu sites; A404 CU has altloc B and insertion code C, some ligands are symmetry mates
+        json_path = data / "results" / "3kw8_edit_alte_CU-d04.json"
+        model_path = data / "models" / "3kw8_edit_alte.pdb.gz"
+    elif case == "1e8a":
+        # Ca sites; for A1090 CA, MetalCoord grouped bidentate ligands into centroids
+        json_path = data / "models" / "1E8A_CA.json"
+        model_path = data / "models" / "1E8A.cif.gz"
+    output_prefix = tmp_path / f"{case}_mc_restraints"
 
     json2restraints_main(
         jsonPaths=[str(json_path)],
-        stPath=str(pdb_path),
+        stPath=str(model_path),
         outputPrefix=str(output_prefix),
     )
-    return output_prefix
 
-
-def test_json2restraints_3kw8(output_prefix):
-
-    expected_files = [
-        output_prefix.with_suffix(".txt"),
-        output_prefix.with_suffix(".json"),
-        output_prefix.with_suffix(".yaml"),
-        output_prefix.with_name(output_prefix.name + "_coot.txt"),
-        output_prefix.with_name(output_prefix.name + "_buster.txt"),
-        output_prefix.with_suffix(".params"),
-        output_prefix.with_suffix(".mmcif"),
-        output_prefix.with_suffix(".pdb"),
-    ]
-
-    for path in expected_files:
+    txt_path = output_prefix.with_suffix(".txt")
+    json_path = output_prefix.with_suffix(".json")
+    yaml_path = output_prefix.with_suffix(".yaml")
+    coot_path = output_prefix.with_name(output_prefix.name + "_coot.txt")
+    buster_path = output_prefix.with_name(output_prefix.name + "_buster.txt")
+    params_path = output_prefix.with_suffix(".params")
+    mmcif_path = output_prefix.with_suffix(".mmcif")
+    pdb_path = output_prefix.with_suffix(".pdb")
+    for path in [txt_path, json_path, yaml_path, coot_path, buster_path, params_path, mmcif_path, pdb_path]:
         assert path.exists(), f"Missing generated file: {path}"
 
-    output_restraints = output_prefix.with_suffix(".txt").read_text(encoding="utf-8")
-    _assert_exte_dist_syntax(output_restraints)
-    _assert_exte_angle_syntax(output_restraints)
-    assert output_restraints.count("exte dist") >= 14
-    assert output_restraints.count("exte angle") >= 8
-    assert output_restraints.count("symm y") >= 15  #  A404 CU altecode B
+    output_txt = txt_path.read_text(encoding="utf-8")
+    output_json = json.loads(json_path.read_text(encoding="utf-8"))
+    output_yaml = yaml_path.read_text(encoding="utf-8")
+    output_coot = coot_path.read_text(encoding="utf-8")
+    output_buster = buster_path.read_text(encoding="utf-8")
 
-    output_coot = output_prefix.with_name(output_prefix.name + "_coot.txt").read_text(encoding="utf-8")
+    # --- Servalcat/Refmac keywords (.txt) ---
+    dist_lines = [line.strip() for line in output_txt.splitlines() if line.startswith("exte dist ")]
+    angle_lines = [line.strip() for line in output_txt.splitlines() if line.startswith("exte angle ")]
+    assert dist_lines and angle_lines
+    for line in dist_lines:
+        assert re.match(EXTE_DIST_PATTERN, line), f"Unexpected exte dist syntax: {line}"
+    for line in angle_lines:
+        assert re.match(EXTE_ANGLE_PATTERN, line), f"Unexpected exte angle syntax: {line}"
+
+    # --- Coot: no comments, no symmetry ---
     assert "#" not in output_coot
     assert "symm y" not in output_coot
 
-    restraints_json = json.loads(output_prefix.with_suffix(".json").read_text(encoding="utf-8"))
-    dist_json = [r for r in restraints_json if r["rest_type"] == "dist"]
-    angl_json = [r for r in restraints_json if r["rest_type"] == "angl"]
-    assert len(dist_json) >= output_restraints.count("exte dist")
-    assert len(angl_json) >= output_restraints.count("exte angle")
-    for r in dist_json:
+    # --- Servalcat JSON and YAML config ---
+    dist_json = [r for r in output_json if r["rest_type"] == "dist"]
+    angl_json = [r for r in output_json if r["rest_type"] == "angl"]
+    cdist_json = [r for r in output_json if r["rest_type"] == "cdist"]
+    cangl_json = [r for r in output_json if r["rest_type"] == "cangl"]
+    assert len(dist_json) == len(dist_lines)
+    assert len(angl_json) == len(angle_lines)
+    assert len(output_json) == len(dist_json) + len(angl_json) + len(cdist_json) + len(cangl_json)
+    for r in dist_json + cdist_json:
         assert len(r["restr"]["specs"]) == 2
-    for r in angl_json:
+    for r in angl_json + cangl_json:
         assert len(r["restr"]["specs"]) == 3
-
-    # A404C CU altecode B: insertion code and altloc must be propagated
-    specs_404 = [
-        spec
-        for r in restraints_json
-        for specs in r["restr"]["specs"]
-        for spec in specs
-        if spec["resi"] == 404
-    ]
-    assert specs_404, "No restraint with A404 CU in the JSON file"
-    for spec in specs_404:
-        assert spec.get("ins") == "C" and spec.get("alt") == "B", spec
-    assert "resi 404 inse C atom CU altecode B" in output_restraints
-    output_buster = output_prefix.with_name(output_prefix.name + "_buster.txt").read_text(encoding="utf-8")
-    assert "A|404C:CU.B" in output_buster
-
-    output_yaml = output_prefix.with_suffix(".yaml").read_text(encoding="utf-8")
     assert "exte_files" in output_yaml
-    assert str(output_prefix.with_suffix(".json")) in output_yaml
+    assert str(json_path) in output_yaml
 
+    # --- data set specific checks ---
+    if case == "3kw8":
+        assert len(dist_lines) >= 14
+        assert len(angle_lines) >= 8
+        assert output_txt.count("symm y") >= 15
+        assert not cdist_json and not cangl_json
 
-def test_servalcat_keyword_file(output_prefix):
-    run_servalcat_refine_geom(output_prefix)
+        # A404C CU altecode B: insertion code and altloc must be propagated to all formats
+        assert "resi 404 inse C atom CU altecode B" in output_txt
+        assert "A|404C:CU.B" in output_buster
+        assert "resid 404C and name CU and altloc B" in params_path.read_text(encoding="utf-8")
+        specs_404 = [spec for r in output_json for specs in r["restr"]["specs"] for spec in specs if spec["resi"] == 404]
+        assert specs_404
+        for spec in specs_404:
+            assert spec.get("ins") == "C" and spec.get("alt") == "B", spec
 
+    if case == "1e8a":
+        # A1090 CA: octahedral with 2 groups collapsed (ASP 65 OD1/OD2 and GLU 72 OE1/OE2)
+        # centroid restraints are only in the JSON file
+        assert "cdist" not in output_txt and "cangl" not in output_txt
+        assert len(cdist_json) == 2
+        assert len(cangl_json) == 9
+        metal = [{"chain": "A", "resi": 1090, "names": ["CA"]}]
+        for r in cdist_json:
+            assert r["restr"]["specs"][0] == metal
+        for r in cangl_json:
+            assert r["restr"]["specs"][1] == metal
+        centroid_members = {(spec["resi"], spec["names"][0]) for r in cdist_json for spec in r["restr"]["specs"][1]}
+        assert centroid_members == {(65, "OD1"), (65, "OD2"), (72, "OE1"), (72, "OE2")}
 
-def test_servalcat_json(output_prefix):
-    try:
-        from servalcat.refine.refine import RefineConfig
-    except ImportError:
-        pytest.skip("servalcat is not available; skipping JSON restraints validation")
-    if "exte_files" not in RefineConfig.__dataclass_fields__:
-        pytest.skip("servalcat is too old for JSON external restraints (no refine.exte_files)")
-    _assert_json_matches_txt(output_prefix)
-    run_servalcat_refine_geom(output_prefix, use_config=True)
+    # --- Servalcat: load the restraints for the output structure, no refinement run ---
+    # read_external_restraints() raises RuntimeError if a restraint refers to an atom not in the structure
+    if SERVALCAT_AVAIL:
+        st = gemmi.read_structure(str(mmcif_path))
 
+        # restraints from the .txt keyword file (as servalcat --keyword_file)
+        geom = ext.Geometry(st, RefineParams(st, refine_xyz=True), gemmi.EnerLib())
+        if SERVALCAT_JSON_AVAIL:
+            exte_blocks = refmac_keywords.RefmacKeywords(keyword_files=[[str(txt_path)]]).params["exte_blocks"]
+            exte.read_external_restraints(exte_blocks, st, geom)
+        else:
+            # older servalcat: a list of restraints instead of blocks from individual files
+            exte_list = refmac_keywords.parse_keywords(txt_path.read_text(encoding="utf-8").splitlines())["exte"]
+            exte.read_external_restraints(exte_list, st, geom)
+        assert len(geom.bonds) == len(dist_lines)
+        assert len(geom.angles) == len(angle_lines)
 
-def test_phenix_params(output_prefix: Path) -> None:
-    """Validate the .params file against the Phenix master parameters (no refinement run)
-    and check that every atom selection matches exactly one atom in the model."""
-    try:
-        import iotbx.pdb
-        import iotbx.phil
-        from mmtbx.monomer_library.pdb_interpretation import geometry_restraints_edits_str
-    except ImportError:
-        pytest.skip("iotbx is not available; skipping Phenix restraints validation")
+        if SERVALCAT_JSON_AVAIL:
+            # restraints from the .json file given in the .yaml config (as servalcat --config)
+            config = OmegaConf.merge(OmegaConf.create({"refine": RefineConfig()}), OmegaConf.load(yaml_path))
+            exte_blocks = {f: json.loads(Path(f).read_text(encoding="utf-8")) for f in config.refine.exte_files}
+            geom = ext.Geometry(st, RefineParams(st, refine_xyz=True), gemmi.EnerLib())
+            exte.read_external_restraints(exte_blocks, st, geom)
+            assert len(geom.bonds) == len(dist_json)
+            assert len(geom.angles) == len(angl_json)
+            assert len(geom.cbonds) == len(cdist_json)
+            assert len(geom.cangles) == len(cangl_json)
 
-    # Phenix definition of the parameters (names, types, allowed values) for the .params file
-    master = iotbx.phil.parse(f"refinement.geometry_restraints.edits {{\n{geometry_restraints_edits_str}\n}}")
-    params = iotbx.phil.parse(file_name=str(output_prefix.with_suffix(".params")))
-    working, unused = master.fetch(sources=[params], track_unused_definitions=True)
-    assert not unused, f"Unknown Phenix parameters: {[str(u) for u in unused]}"
-    edits = working.extract().refinement.geometry_restraints.edits
-    assert edits.bond and edits.angle, "No bond or angle restraints in the .params file"
+            # every restraint parsed by servalcat from the .txt keyword file must be in the JSON file
+            # (the JSON file may contain more: extra keys or extra restraints like cdist and cangl)
+            json_flat = [flatten(r) for r in output_json]
+            for line in dist_lines + angle_lines:
+                r = refmac_keywords.read_exte(line.split("#")[0].split())
+                r.pop("defaults", None)
+                assert any(flatten(r) <= f for f in json_flat), f"Not found in the JSON file: {line}"
+        else:
+            warnings.warn("servalcat is too old for JSON restraints: JSON checks not run")
+    else:
+        warnings.warn("servalcat not available: Servalcat checks not run")
 
-    model = iotbx.pdb.input(file_name=str(output_prefix.with_suffix(".pdb")))
-    cache = model.construct_hierarchy().atom_selection_cache()
-    for r in edits.bond + edits.angle:
-        for sel in (r.atom_selection_1, r.atom_selection_2, getattr(r, "atom_selection_3", None)):
-            if sel is not None:
-                n = cache.selection(sel).count(True)
-                assert n == 1, f"Phenix selection matches {n} atoms: {sel}"
+    # --- Phenix (.params): syntax and atom selections, no refinement run ---
+    if IOTBX_AVAIL:
+        # Phenix definition of the parameters (names, types, allowed values) for the .params file
+        master = iotbx.phil.parse(f"refinement.geometry_restraints.edits {{\n{geometry_restraints_edits_str}\n}}")
+        params = iotbx.phil.parse(file_name=str(params_path))
+        working, unused = master.fetch(sources=[params], track_unused_definitions=True)
+        assert not unused, f"Unknown Phenix parameters: {[str(u) for u in unused]}"
+        edits = working.extract().refinement.geometry_restraints.edits
+        assert edits.bond and edits.angle
+
+        # every atom selection must select exactly one atom
+        cache = iotbx.pdb.input(file_name=str(pdb_path)).construct_hierarchy().atom_selection_cache()
+        selections = [s for r in edits.bond for s in (r.atom_selection_1, r.atom_selection_2)]
+        selections += [s for r in edits.angle for s in (r.atom_selection_1, r.atom_selection_2, r.atom_selection_3)]
+        for selection in selections:
+            n = cache.selection(selection).count(True)
+            assert n == 1, f"Phenix selection matches {n} atoms: {selection}"
+    else:
+        warnings.warn("iotbx not available: Phenix checks not run")
