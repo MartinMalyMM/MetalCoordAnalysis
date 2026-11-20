@@ -33,7 +33,7 @@ When a structure model (PDB/mmCIF file) is given, the original metal-related LIN
 in the input PDB/mmCIF file are deleted and then the metal-related links were added again from scratch based on
 the MetalCoord analysis. To turn off the deletion step, an extra option --keep-links can be used but a user should
 be very careful and check the result to avoid inconsistencies in the connection/link records.
-No links are created for grouped ligand atoms collapsed to a centroid.
+For grouped ligand atoms collapsed to a centroid, a link is created to each atom of the group.
 These files are then created:
  - mc_restraints.mmcif
  - mc_restraints.pdb
@@ -105,6 +105,40 @@ def select_coordination_class(ligands):
         if is_grouped_class(ligand):
             return ligand
     return ligands[0]
+
+
+def atom_address(st, atom):
+    """gemmi.AtomAddress of an atom described in the MetalCoord JSON.
+    Atom names are taken from the keys 'metal' (metal atom) or 'name' (ligand atom).
+    Without altloc, the first matching atom is taken regardless of altloc."""
+    name = atom["metal"] if "metal" in atom else atom["name"]
+    seqid = str(atom["sequence"])
+    if atom["icode"] and atom["icode"] != ".":
+        seqid += atom["icode"]
+    chain = st[0][atom["chain"]]
+    residue = chain[seqid][atom["residue"]]
+    return gemmi.make_address(chain, residue, residue.find_atom(name, atom["altloc"] or "*"))
+
+
+def add_metal_link(st, atom_metal, atom_ligand, name):
+    """Add a MetalC LINK / _struct_conn record between a metal and a ligand atom
+    unless the same connection already exists. Returns True if the link was added."""
+    con = gemmi.Connection()
+    con.name = name
+    con.type = gemmi.ConnectionType.MetalC
+    con.partner1 = atom_address(st, atom_metal)
+    con.partner2 = atom_address(st, atom_ligand)
+    for con_existing in st.connections:
+        if (
+            con_existing.partner1 == con.partner1
+            and con_existing.partner2 == con.partner2
+        ) or (
+            con_existing.partner1 == con.partner2
+            and con_existing.partner2 == con.partner1
+        ):
+            return False
+    st.connections.append(con)
+    return True
 
 
 def main(
@@ -349,54 +383,9 @@ def main(
                             outputLinesPhenix.append("  }\n")
                     if j >= len(ligand["base"]) and stPath:
                         # create a LINK /_struct_conn in PDB-mmCIF, it's from 'pdb', i.e. neighbourhood
-                        con = gemmi.Connection()
-                        con.name = "metalcoord" + str(i_con)
-                        con.type = gemmi.ConnectionType.MetalC
-                        if atom_metal["altloc"]:
-                            atom_metal_altloc = atom_metal["altloc"]
-                        else:
-                            atom_metal_altloc = (
-                                "*"  # take the first matching atom regardless of altloc
-                            )
-                        con.partner1 = gemmi.make_address(
-                            st[0][atom_metal["chain"]],
-                            st[0][atom_metal["chain"]][atom_metal["sequence_icode"]][
-                                atom_metal["residue"]
-                            ],
-                            st[0][atom_metal["chain"]][atom_metal["sequence_icode"]][
-                                atom_metal["residue"]
-                            ].find_atom(atom_metal["metal"], atom_metal_altloc),
-                        )
-                        if atom_ligand["ligand"]["altloc"]:
-                            atom_ligand_altloc = atom_ligand["ligand"]["altloc"]
-                        else:
-                            atom_ligand_altloc = (
-                                "*"  # take the first matching atom regardless of altloc
-                            )
-                        con.partner2 = gemmi.make_address(
-                            st[0][atom_ligand["ligand"]["chain"]],
-                            st[0][atom_ligand["ligand"]["chain"]][
-                                atom_ligand["ligand"]["sequence_icode"]
-                            ][atom_ligand["ligand"]["residue"]],
-                            st[0][atom_ligand["ligand"]["chain"]][
-                                atom_ligand["ligand"]["sequence_icode"]
-                            ][atom_ligand["ligand"]["residue"]].find_atom(
-                                atom_ligand["ligand"]["name"], atom_ligand_altloc
-                            ),
-                        )
-                        # con.reported_distance = atom_ligand['distance'][i]
-                        con_exists = False
-                        for con_existing in st.connections:
-                            if (
-                                con_existing.partner1 == con.partner1
-                                and con_existing.partner2 == con.partner2
-                            ) or (
-                                con_existing.partner1 == con.partner2
-                                and con_existing.partner2 == con.partner1
-                            ):
-                                con_exists = True
-                        if not con_exists:
-                            st.connections.append(con)
+                        if add_metal_link(
+                            st, atom_metal, atom_ligand["ligand"], "metalcoord" + str(i_con)
+                        ):
                             i_con += 1
             # exte angle
             for atom_ligands in ligand[
@@ -545,6 +534,11 @@ def main(
             # centroid restraints for grouped ligands (e.g. bidentate carboxylates)
             # only for Servalcat JSON - cannot be expressed in the other formats
             for grouped in ligand.get("grouped_base", []):
+                if stPath and grouped["ligand"].get("kind") == "centroid":
+                    # LINK /_struct_conn in PDB-mmCIF to each member atom of the centroid
+                    for member in grouped["ligand"]["members"]:
+                        if add_metal_link(st, atom_metal, member, "metalcoord" + str(i_con)):
+                            i_con += 1
                 ligand_group = servalcat_group_specs(grouped["ligand"])
                 if ligand_group is None:
                     print(

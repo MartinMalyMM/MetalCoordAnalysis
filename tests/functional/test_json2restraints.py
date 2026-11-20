@@ -177,6 +177,18 @@ def test_json2restraints(case, tmp_path):
         for r in cangl_json:
             assert r["restr"]["specs"][1] in metals
 
+        # links: for each centroid, every member atom is linked to the metal
+        for model_path in (mmcif_path, pdb_path):
+            st_out = gemmi.read_structure(str(model_path))
+            links = {
+                (c.partner1.chain_name, c.partner1.res_id.seqid.num, c.partner2.res_id.seqid.num, c.partner2.atom_name)
+                for c in st_out.connections
+                if c.type == gemmi.ConnectionType.MetalC and c.partner1.atom_name == "CA"
+            }
+            for (chain, resi), members in expected_members.items():
+                linked_members = {(r, n) for c, m, r, n in links if (c, m) == (chain, resi) and (r, n) in members}
+                assert linked_members == members, f"{model_path.name} {chain}{resi}"
+
     # --- Servalcat: load the restraints for the output structure, no refinement run ---
     # read_external_restraints() raises RuntimeError if a restraint refers to an atom not in the structure
     if SERVALCAT_AVAIL:
