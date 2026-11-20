@@ -118,6 +118,7 @@ for atom_cra_pair in atom_cra_pairs:
             "icode": icode,
             "altloc": altloc,
             "symmetry": 0,
+            "operator": "x,y,z",  # as in MetalCoord JSON since version with symmetry operators
         }
     atoms_equivalent_all.append(atoms_equivalent)
     atom_cra_pair[0].atom.pos = pos_average
@@ -129,7 +130,7 @@ for atom_cra_pair in atom_cra_pairs:
 print("")
 pprint.pprint(atoms_equivalent_all)
 
-with open(prefix + "_nopairs_equivalents.json", "w") as f:
+with open(prefix + "_nopairs_equivalents.json", "w", encoding="utf-8") as f:
     json.dump(atoms_equivalent_all, f, indent=4)
 outputPdbName = prefix + "_nopairs.pdb"
 outputMmcifName = prefix + "_nopairs.mmcif"
