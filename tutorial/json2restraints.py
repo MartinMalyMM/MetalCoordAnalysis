@@ -93,18 +93,26 @@ def servalcat_atom_spec(
     return spec
 
 
-def servalcat_group_specs(atom: Atom) -> list[AtomSpec] | None:
+def servalcat_group_specs(atom: Atom) -> list[AtomSpec]:
     """Group of atom specifications for centroid restraints (cdist, cangl) in the Servalcat JSON format.
     A centroid from MetalCoord ("kind": "centroid") gives a group of all its members,
-    a regular atom gives a group of one atom. Returns None if any atom is from a symmetry-related
-    molecule as Servalcat centroid restraints between symmetry mates are not supported here."""
+    a regular atom gives a group of one atom.
+    Atoms from symmetry-related molecules are marked with "symm": true."""
     members = atom["members"] if atom.get("kind") == "centroid" else [atom]
-    if any(m["symmetry"] for m in members):
-        return None
     return [
-        servalcat_atom_spec(m["chain"], m["sequence"], m["icode"], m["name"], m["altloc"])
+        servalcat_atom_spec(m["chain"], m["sequence"], m["icode"], m["name"], m["altloc"], m["symmetry"])
         for m in members
     ]
+
+
+def servalcat_centroid_restraint(specs: list[list[AtomSpec]], value: float, sigma: float) -> dict[str, Any]:
+    """Centroid restraint (cdist, cangl) in the Servalcat JSON format.
+    If any atom is from a symmetry-related molecule, the whole restraint is marked with "symm": true
+    as Servalcat reads the symmetry flag of centroid restraints at the restraint level."""
+    restr: dict[str, Any] = {"specs": specs, "value": value, "sigma": sigma}
+    if any(spec.get("symm") for group in specs for spec in group):
+        restr["symm"] = True
+    return restr
 
 
 def is_grouped_class(ligand: CoordinationClass) -> bool:
@@ -570,40 +578,29 @@ def main(
                     for member in grouped["ligand"]["members"]:
                         if add_metal_link(st, atom_metal, member, "metalcoord" + str(i_con)):
                             i_con += 1
-                ligand_group = servalcat_group_specs(grouped["ligand"])
-                if ligand_group is None:
-                    print(
-                        "WARNING: centroid distance restraint with symmetry-related atoms skipped:"
-                        f" {grouped['ligand']['name']}"
-                    )
-                    continue
                 outputRestraintsJson.append(
                     {
                         "rest_type": "cdist",
-                        "restr": {
-                            "specs": [metal_spec, ligand_group],
-                            "value": grouped["distance"],
-                            "sigma": grouped["std"],
-                        },
+                        "restr": servalcat_centroid_restraint(
+                            [metal_spec, servalcat_group_specs(grouped["ligand"])],
+                            grouped["distance"],
+                            grouped["std"],
+                        ),
                     }
                 )
             for grouped in ligand.get("grouped_angles", []):
-                group1 = servalcat_group_specs(grouped["ligand1"])
-                group2 = servalcat_group_specs(grouped["ligand2"])
-                if group1 is None or group2 is None:
-                    print(
-                        "WARNING: centroid angle restraint with symmetry-related atoms skipped: "
-                        f"{grouped['ligand1']['name']}-{atom_metal['metal']}-{grouped['ligand2']['name']}"
-                    )
-                    continue
                 outputRestraintsJson.append(
                     {
                         "rest_type": "cangl",
-                        "restr": {
-                            "specs": [group1, metal_spec, group2],
-                            "value": round(grouped["angle"], 2),
-                            "sigma": round(grouped["std"], 2),
-                        },
+                        "restr": servalcat_centroid_restraint(
+                            [
+                                servalcat_group_specs(grouped["ligand1"]),
+                                metal_spec,
+                                servalcat_group_specs(grouped["ligand2"]),
+                            ],
+                            round(grouped["angle"], 2),
+                            round(grouped["std"], 2),
+                        ),
                     }
                 )
     outputLines.append("### RESTRAINTS FROM METALCOORD - END ###\n")
