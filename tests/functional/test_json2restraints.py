@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
+import sys
 import warnings
 from pathlib import Path
 from typing import Any
@@ -61,6 +63,10 @@ EXTE_ANGLE_PATTERN = (
     r"(?: # .*?)?$"
 )
 
+REPO = Path(__file__).resolve().parents[2]
+DATA = REPO / "tests" / "data"
+TUTORIAL = REPO / "tutorial"
+
 
 def flatten(obj: Any, path: tuple[str | int, ...] = ()) -> set[tuple[tuple[str | int, ...], Any]]:
     """Flatten nested dicts/lists into a set of (path, value) pairs, list lengths included.
@@ -74,17 +80,31 @@ def flatten(obj: Any, path: tuple[str | int, ...] = ()) -> set[tuple[tuple[str |
     return {(path, obj)}
 
 
+def read_txt_restraints(st: gemmi.Structure, txt_path: Path) -> ext.Geometry:
+    """Load the restraints from the .txt keyword file (as servalcat --keyword_file), no refinement run.
+    read_external_restraints() raises RuntimeError if a restraint refers to an atom not in the structure.
+    """
+    geom = ext.Geometry(st, RefineParams(st, refine_xyz=True), gemmi.EnerLib())
+    if SERVALCAT_JSON_AVAIL:
+        exte_blocks = refmac_keywords.RefmacKeywords(keyword_files=[[str(txt_path)]]).params["exte_blocks"]
+        exte.read_external_restraints(exte_blocks, st, geom)
+    else:
+        # older servalcat: a list of restraints instead of blocks from individual files
+        exte_list = refmac_keywords.parse_keywords(txt_path.read_text(encoding="utf-8").splitlines())["exte"]
+        exte.read_external_restraints(exte_list, st, geom)
+    return geom
+
+
 @pytest.mark.parametrize("case", ["3kw8", "1e8a"])
 def test_json2restraints(case: str, tmp_path: Path) -> None:
-    data = Path(__file__).resolve().parents[2] / "tests" / "data"
     if case == "3kw8":
         # Cu sites; A404 CU has altloc B and insertion code C, some ligands are symmetry mates
-        json_path = data / "results" / "3kw8_edit_alte_CU-d04.json"
-        model_path = data / "models" / "3kw8_edit_alte.pdb.gz"
+        json_path = DATA / "results" / "3kw8_edit_alte_CU-d04.json"
+        model_path = DATA / "models" / "3kw8_edit_alte.pdb.gz"
     elif case == "1e8a":
         # Ca sites; for A1090 CA, MetalCoord grouped bidentate ligands into centroids
-        json_path = data / "models" / "1E8A_CA.json"
-        model_path = data / "models" / "1E8A.cif.gz"
+        json_path = DATA / "models" / "1E8A_CA.json"
+        model_path = DATA / "models" / "1E8A.cif.gz"
     output_prefix = tmp_path / f"{case}_mc_restraints"
 
     json2restraints_main(
@@ -195,19 +215,9 @@ def test_json2restraints(case: str, tmp_path: Path) -> None:
                 assert linked_members == members, f"{model_path.name} {chain}{resi}"
 
     # --- Servalcat: load the restraints for the output structure, no refinement run ---
-    # read_external_restraints() raises RuntimeError if a restraint refers to an atom not in the structure
     if SERVALCAT_AVAIL:
         st = gemmi.read_structure(str(mmcif_path))
-
-        # restraints from the .txt keyword file (as servalcat --keyword_file)
-        geom = ext.Geometry(st, RefineParams(st, refine_xyz=True), gemmi.EnerLib())
-        if SERVALCAT_JSON_AVAIL:
-            exte_blocks = refmac_keywords.RefmacKeywords(keyword_files=[[str(txt_path)]]).params["exte_blocks"]
-            exte.read_external_restraints(exte_blocks, st, geom)
-        else:
-            # older servalcat: a list of restraints instead of blocks from individual files
-            exte_list = refmac_keywords.parse_keywords(txt_path.read_text(encoding="utf-8").splitlines())["exte"]
-            exte.read_external_restraints(exte_list, st, geom)
+        geom = read_txt_restraints(st, txt_path)
         assert len(geom.bonds) == len(dist_lines)
         assert len(geom.angles) == len(angle_lines)
 
@@ -253,3 +263,116 @@ def test_json2restraints(case: str, tmp_path: Path) -> None:
             assert n == 1, f"Phenix selection matches {n} atoms: {selection}"
     else:
         warnings.warn("iotbx not available: Phenix checks not run")
+
+
+# --- Metal-atom-atom-metal triangles: 8TNV example from tutorial.rst ---
+# Cu2O2 cluster (CUO) in 8TNV: triangles CU1-O1-O2-CU1 and CU2-O1-O2-CU2 in chains A (402) and B (406)
+CUO_RESIDUES = [("A", 402), ("B", 406)]
+
+
+def test_triangles(tmp_path: Path) -> None:
+    """triangles.py reproduces the tutorial files: in each O1-O2 pair, O1 is kept and moved
+    to the midpoint and O2 is deleted (deterministically), the equivalents include "operator".
+    """
+    model_path = tmp_path / "8tnv.cif"
+    model_path.write_bytes((DATA / "models" / "8tnv.cif").read_bytes())
+    # run in tmp_path as the script writes output files next to the input
+    subprocess.run(
+        [sys.executable, str(TUTORIAL / "triangles.py"), model_path.name],
+        cwd=tmp_path, check=True, capture_output=True,
+    )
+
+    equivalents_path = tmp_path / "8tnv_nopairs_equivalents.json"
+    mmcif_path = tmp_path / "8tnv_nopairs.mmcif"
+    for path in [equivalents_path, mmcif_path]:
+        assert path.exists(), f"Missing generated file: {path}"
+
+    # --- equivalents (.json) ---
+    equivalents = json.loads(equivalents_path.read_text(encoding="utf-8"))
+    assert equivalents == json.loads((TUTORIAL / equivalents_path.name).read_text(encoding="utf-8"))
+    assert [(p[0]["chain"], p[0]["name"], p[1]["name"]) for p in equivalents] == [("A", "O1", "O2"), ("B", "O1", "O2")]
+    assert all(atom["operator"] == "x,y,z" for pair in equivalents for atom in pair)
+
+    # --- structure: O1 moved to the O1-O2 midpoint, O2 deleted ---
+    st_in = gemmi.read_structure(str(model_path))
+    st_out = gemmi.read_structure(str(mmcif_path))
+    for chain, resi in CUO_RESIDUES:
+        cuo_in = st_in[0][chain][str(resi)][0]
+        cuo_out = st_out[0][chain][str(resi)][0]
+        assert cuo_out.find_atom("O2", "*") is None
+        midpoint = (cuo_in["O1"][0].pos + cuo_in["O2"][0].pos) / 2
+        assert cuo_out["O1"][0].pos.dist(midpoint) < 1e-3
+
+    # same atoms (names and positions) as in the tutorial file (B-factors may differ)
+    st_tutorial = gemmi.read_structure(str(TUTORIAL / mmcif_path.name))
+    atoms_out = {(ch.name, str(res.seqid), a.name): a.pos for ch in st_out[0] for res in ch for a in res}
+    atoms_tutorial = {(ch.name, str(res.seqid), a.name): a.pos for ch in st_tutorial[0] for res in ch for a in res}
+    assert atoms_out.keys() == atoms_tutorial.keys()
+    for key, pos in atoms_out.items():
+        assert pos.dist(atoms_tutorial[key]) < 1e-3, key
+
+
+@pytest.mark.parametrize("equivalents_with_operator", [True, False])
+def test_json2restraints_triangles(equivalents_with_operator: bool, tmp_path: Path) -> None:
+    """json2restraints.py -e: the bond length restraints of the kept atom (O1) are applied also
+    to the deleted atom (O2), angle restraints with these atoms are removed.
+    Equivalents without "operator" (from older triangles.py versions) must give the same result.
+    """
+    equivalents = json.loads((TUTORIAL / "8tnv_nopairs_equivalents.json").read_text(encoding="utf-8"))
+    if not equivalents_with_operator:
+        for pair in equivalents:
+            for atom in pair:
+                atom.pop("operator", None)
+    equivalents_path = tmp_path / "8tnv_nopairs_equivalents.json"
+    equivalents_path.write_text(json.dumps(equivalents), encoding="utf-8")
+    json_path = TUTORIAL / "8tnv_nopairs_mc.json"
+    model_path = DATA / "models" / "8tnv.cif"
+    output_prefix = tmp_path / "8tnv_mc_restraints"
+
+    json2restraints_main(
+        jsonPaths=[str(json_path)],
+        stPath=str(model_path),
+        outputPrefix=str(output_prefix),
+        jsonEquivalentsPath=str(equivalents_path),
+    )
+
+    txt_path = output_prefix.with_suffix(".txt")
+    mmcif_path = output_prefix.with_suffix(".mmcif")
+    for path in [txt_path, mmcif_path]:
+        assert path.exists(), f"Missing generated file: {path}"
+
+    output_txt = txt_path.read_text(encoding="utf-8")
+
+    # --- Servalcat/Refmac keywords (.txt) ---
+    dist_lines = [line.strip() for line in output_txt.splitlines() if line.startswith("exte dist ")]
+    angle_lines = [line.strip() for line in output_txt.splitlines() if line.startswith("exte angle ")]
+    for line in dist_lines:
+        assert re.match(EXTE_DIST_PATTERN, line), f"Unexpected exte dist syntax: {line}"
+    for line in angle_lines:
+        assert re.match(EXTE_ANGLE_PATTERN, line), f"Unexpected exte angle syntax: {line}"
+    assert len(dist_lines) == 28
+    assert len(angle_lines) == 12
+
+    # O1 and O2: the same restraints to CU1 and CU2, 2 variants each, no angle restraints
+    for chain, resi in CUO_RESIDUES:
+        restraints = {}
+        for o in ("O1", "O2"):
+            atom = f"chain {chain} resi {resi} inse . atom {o} "
+            restraints[o] = sorted(line.replace(f"atom {o} ", "atom O ") for line in dist_lines if atom in line)
+            assert len(restraints[o]) == 4, f"{chain}{resi} {o}"
+            assert not [line for line in angle_lines if atom in line], f"{chain}{resi} {o}"
+        assert restraints["O1"] == restraints["O2"]
+
+    # restraints identical to the tutorial result
+    tutorial_txt = (TUTORIAL / txt_path.name).read_text(encoding="utf-8")
+    tutorial_lines = [line.strip() for line in tutorial_txt.splitlines() if line.startswith("exte ")]
+    assert sorted(dist_lines + angle_lines) == sorted(tutorial_lines)
+
+    # --- Servalcat: load the restraints for the output structure, no refinement run ---
+    if SERVALCAT_AVAIL:
+        st = gemmi.read_structure(str(mmcif_path))
+        geom = read_txt_restraints(st, txt_path)
+        assert len(geom.bonds) == len(dist_lines)
+        assert len(geom.angles) == len(angle_lines)
+    else:
+        warnings.warn("servalcat not available: Servalcat checks not run")
