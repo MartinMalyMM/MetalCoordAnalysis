@@ -45,22 +45,39 @@ To list all the available options, run:
 ccp4-python json2restraints.py -h
 """
 
+from __future__ import annotations
+
 __author__ = "Martin Malý"
 __date__ = "2026-11-20"
 
 import json
+from typing import Any
 
 try:
     import gemmi
 except:
     raise SystemExit("ERROR: module GEMMI not found.\n")
 
+# Records from the MetalCoord JSON: an atom (metal, ligand atom or centroid of grouped atoms)
+# and a coordination class (an item of the 'ligands' list)
+Atom = dict[str, Any]
+CoordinationClass = dict[str, Any]
+# Atom specification for external restraints in the Servalcat JSON format
+AtomSpec = dict[str, Any]
 
-def servalcat_atom_spec(chain, resi, icode, name, altloc=None, symm=False):
+
+def servalcat_atom_spec(
+    chain: str,
+    resi: int | str,
+    icode: str | None,
+    name: str,
+    altloc: str | None = None,
+    symm: int = 0,
+) -> AtomSpec:
     """Atom specification for external restraints in the Servalcat JSON format.
     Mirrors what servalcat.refmac.refmac_keywords.parse_atom_spec() produces
     from the corresponding Refmac keyword."""
-    spec = {"chain": chain, "resi": int(resi), "names": [name]}
+    spec: AtomSpec = {"chain": chain, "resi": int(resi), "names": [name]}
     if icode and icode != ".":
         spec["ins"] = icode
     if altloc:
@@ -70,7 +87,7 @@ def servalcat_atom_spec(chain, resi, icode, name, altloc=None, symm=False):
     return spec
 
 
-def servalcat_group_specs(atom):
+def servalcat_group_specs(atom: Atom) -> list[AtomSpec] | None:
     """Group of atom specifications for centroid restraints (cdist, cangl) in the Servalcat JSON format.
     A centroid from MetalCoord ("kind": "centroid") gives a group of all its members,
     a regular atom gives a group of one atom. Returns None if any atom is from a symmetry-related
@@ -84,7 +101,7 @@ def servalcat_group_specs(atom):
     ]
 
 
-def is_grouped_class(ligand):
+def is_grouped_class(ligand: CoordinationClass) -> bool:
     """True if the coordination class contains grouped ligands collapsed to a centroid,
     i.e. its descriptor includes Q, e.g. @OCT{Ca,O,O,O,O,O,Q}."""
     descriptor = ligand.get("descriptor") or ""
@@ -94,7 +111,7 @@ def is_grouped_class(ligand):
     return False
 
 
-def select_coordination_class(ligands):
+def select_coordination_class(ligands: list[CoordinationClass]) -> CoordinationClass | None:
     """Select the coordination class (`ligands` entry in JSON from MetalCoord)
     to generate restraints from.
     A grouped-fallback class (with Q in the descriptor) is preferred if available,
@@ -107,7 +124,7 @@ def select_coordination_class(ligands):
     return ligands[0]
 
 
-def atom_address(st, atom):
+def atom_address(st: gemmi.Structure, atom: Atom) -> gemmi.AtomAddress:
     """gemmi.AtomAddress of an atom described in the MetalCoord JSON.
     Atom names are taken from the keys 'metal' (metal atom) or 'name' (ligand atom).
     Without altloc, the first matching atom is taken regardless of altloc."""
@@ -120,7 +137,7 @@ def atom_address(st, atom):
     return gemmi.make_address(chain, residue, residue.find_atom(name, atom["altloc"] or "*"))
 
 
-def add_metal_link(st, atom_metal, atom_ligand, name):
+def add_metal_link(st: gemmi.Structure, atom_metal: Atom, atom_ligand: Atom, name: str) -> bool:
     """Add a MetalC LINK / _struct_conn record between a metal and a ligand atom
     unless the same connection already exists. Returns True if the link was added."""
     con = gemmi.Connection()
@@ -142,13 +159,13 @@ def add_metal_link(st, atom_metal, atom_ligand, name):
 
 
 def main(
-    jsonPaths,
-    stPath=None,
-    outputPrefix="restraints",
-    jsonEquivalentsPath=None,
-    keep_links=False,
-    distance_variant=None,
-):
+    jsonPaths: list[str],
+    stPath: str | None = None,
+    outputPrefix: str = "restraints",
+    jsonEquivalentsPath: str | None = None,
+    keep_links: bool = False,
+    distance_variant: int | None = None,
+) -> None:
     """This script generates external bond length and angle restraints for Refmacat or Servalcat
        from the JSON files from MetalCoord stats.
 
@@ -206,7 +223,7 @@ def main(
             )
 
     # Load JSON files from metalCoord
-    d = []
+    d: list[dict[str, Any]] = []  # one record per metal atom
     for jsonPath in jsonPaths:
         with open(jsonPath, "r") as f:
             d.extend(json.load(f))
@@ -217,7 +234,7 @@ def main(
     # - delete records in 'angles' section for exte angle restraints
     if jsonEquivalentsPath:
         print("JSON file describing equivalent atoms will be applied.")
-        atom_pairs_all = []
+        atom_pairs_all: list[list[Atom]] = []
         with open(jsonEquivalentsPath, "r") as f:
             atom_pairs_all.extend(json.load(f))
         for atom_pairs in atom_pairs_all:
@@ -250,11 +267,11 @@ def main(
                             if j not in angle_restraints_to_delete
                         ]
 
-    outputLines = []
-    outputRestraintsJson = []
-    outputLinesCoot = []
-    outputLinesPhenix = []
-    outputLinesBuster = []
+    outputLines: list[str] = []
+    outputRestraintsJson: list[dict[str, Any]] = []
+    outputLinesCoot: list[str] = []
+    outputLinesPhenix: list[str] = []
+    outputLinesBuster: list[str] = []
     # Buster: add bond|bcor|angle|plane  <target> <sigma> [<weight>] <atom-1> ... <atom-N>
     # Buster: <chain>|<resnum>:<atmnam>[.<altConf>]
     i_con = 1

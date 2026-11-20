@@ -1,7 +1,12 @@
+# servalcat, iotbx and mmtbx have no type information (optional tools, see below)
+# mypy: disable-error-code="import-untyped,import-not-found"
+from __future__ import annotations
+
 import json
 import re
 import warnings
 from pathlib import Path
+from typing import Any
 import gemmi
 import pytest
 from tutorial.json2restraints import main as json2restraints_main
@@ -57,7 +62,7 @@ EXTE_ANGLE_PATTERN = (
 )
 
 
-def flatten(obj, path=()) -> set:
+def flatten(obj: Any, path: tuple[str | int, ...] = ()) -> set[tuple[tuple[str | int, ...], Any]]:
     """Flatten nested dicts/lists into a set of (path, value) pairs, list lengths included.
     Restraint A is contained in restraint B (B may have extra keys) if flatten(A) <= flatten(B).
     This is used to check that every restraint parsed by servalcat from the .txt keyword file is in the JSON file.
@@ -70,7 +75,7 @@ def flatten(obj, path=()) -> set:
 
 
 @pytest.mark.parametrize("case", ["3kw8", "1e8a"])
-def test_json2restraints(case, tmp_path):
+def test_json2restraints(case: str, tmp_path: Path) -> None:
     data = Path(__file__).resolve().parents[2] / "tests" / "data"
     if case == "3kw8":
         # Cu sites; A404 CU has altloc B and insertion code C, some ligands are symmetry mates
