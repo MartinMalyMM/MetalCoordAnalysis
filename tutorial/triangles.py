@@ -73,7 +73,11 @@ for metal in metals:
                 ):
                     triangle = {metal, cra1.atom, cra2.atom}
                     atom_pair = {cra1.atom, cra2.atom}
-                    atom_cra_pair = {cra1, cra2}
+                    # sorted to make the output deterministic:
+                    # the first atom (e.g. O1) is kept and shifted, the second one (e.g. O2) is deleted
+                    atom_cra_pair = sorted(
+                        [cra1, cra2], key=lambda cra: (cra.atom.name, cra.atom.altloc)
+                    )
                     dist_cra1_cra2 = cra1.atom.pos.dist(cra2.atom.pos)
                     if triangle not in triangles:
                         print("TRIANGLE!", metal, cra1.atom, cra2.atom, cra3.atom)
@@ -96,7 +100,6 @@ pprint.pprint(atom_pairs)
 atoms_equivalent_all = []
 for atom_cra_pair in atom_cra_pairs:
     atoms_equivalent = [{}, {}]
-    atom_cra_pair = list(atom_cra_pair)
     pos_average = (atom_cra_pair[0].atom.pos + atom_cra_pair[1].atom.pos) / 2
     print("Shifted:", atom_cra_pair[0])
     print("Deleted:", atom_cra_pair[1])
