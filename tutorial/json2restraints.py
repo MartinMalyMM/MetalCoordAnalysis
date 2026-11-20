@@ -225,7 +225,7 @@ def main(
     # Load JSON files from metalCoord
     d: list[dict[str, Any]] = []  # one record per metal atom
     for jsonPath in jsonPaths:
-        with open(jsonPath, "r") as f:
+        with open(jsonPath, "r", encoding="utf-8") as f:
             d.extend(json.load(f))
 
     # If provided, load a JSON file describing equivalent atoms (mainly for metal-atom-atom-metal triangles)
@@ -235,7 +235,7 @@ def main(
     if jsonEquivalentsPath:
         print("JSON file describing equivalent atoms will be applied.")
         atom_pairs_all: list[list[Atom]] = []
-        with open(jsonEquivalentsPath, "r") as f:
+        with open(jsonEquivalentsPath, "r", encoding="utf-8") as f:
             atom_pairs_all.extend(json.load(f))
         for atom_pairs in atom_pairs_all:
             for m, atom_metal in enumerate(d):
@@ -594,23 +594,23 @@ def main(
                 )
     outputLines.append("### RESTRAINTS FROM METALCOORD - END ###\n")
     outputLinesPhenix.append("}\n")
-    with open(outputRestraintsPath, "w") as f:
+    with open(outputRestraintsPath, "w", encoding="utf-8") as f:
         f.writelines(outputLines)
     # Servalcat JSON format
-    with open(outputRestraintsJsonPath, "w") as f:
+    with open(outputRestraintsJsonPath, "w", encoding="utf-8") as f:
         f.write("[\n")
         f.write(",\n".join(json.dumps(r) for r in outputRestraintsJson))
         f.write("\n]\n")
     # Servalcat configuration file (--config) pointing to the JSON restraints file
-    with open(outputRestraintsYamlPath, "w") as f:
+    with open(outputRestraintsYamlPath, "w", encoding="utf-8") as f:
         f.write("refine:\n")
         f.write("  exte_files:\n")
         f.write(f"    - {json.dumps(outputRestraintsJsonPath)}\n")
-    with open(outputRestraintsCootPath, "w") as f:
+    with open(outputRestraintsCootPath, "w", encoding="utf-8") as f:
         f.writelines(outputLinesCoot)
-    with open(outputPrefix + "_buster.txt", "w") as f:
+    with open(outputPrefix + "_buster.txt", "w", encoding="utf-8") as f:
         f.writelines(outputLinesBuster)
-    with open(outputRestraintsPhenixPath, "w") as f:
+    with open(outputRestraintsPhenixPath, "w", encoding="utf-8") as f:
         f.writelines(outputLinesPhenix)
     if stPath:
         if i_con == 1:
