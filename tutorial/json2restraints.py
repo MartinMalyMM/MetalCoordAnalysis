@@ -7,13 +7,17 @@ ccp4-python json2restraints.py -i 4dl8_AF3_mc.json 4dl8_MG_mc.json 4dl8_NA_mc.js
 
 The script creates these files:
 
- - mc_restraints.txt is a keyword file for Servalcat or Refmacat containing the external bond
-   length and angle restraints based on a coordination class with the lowest procrustes score.
  - mc_restraints.json is a keyword file for Servalcat in the new format containing the external bond
-   length and angle restraints based on a coordination class with the lowest procrustes score.
+   length and angle restraints based on the best matching coordination class
+   (a grouped-fallback class with centroids is preferred if available).
+   Restraints for grouped ligand atoms (e.g. bidentate carboxylate oxygens) are given
+   as restraints to their centroid (cdist, cangl).
  - mc_restraints.yaml is a configuration file for Servalcat specifying mc_restraints.json as a file
    with external restraints. It can be used as: servalcat refine_xtal_norefmac ... --config mc_restraints.yaml
    Note that the path to mc_restraints.json is relative to the directory where Servalcat is run.
+ - mc_restraints.txt is a keyword file for Servalcat or Refmacat containing the external bond
+   length and angle restraints based on the best matching coordination class
+   (a grouped-fallback class with centroids is preferred if available).
  - mc_restraints_coot.txt is the same keyword file in a simplified format which is compatible with Coot.
    It can be loaded in Coot using Calculate -> Modules -> Restraints and then Restraints -> Read Refmac Extra Restraints.
    The file does not include restraints for atoms with alternative conformations and atoms from symmetry-related molecules.
@@ -21,10 +25,15 @@ The script creates these files:
    The file does not include restraints for atoms from symmetry-related molecules.
  - mc_restraints_buster.txt is a keyword file compatible with Buster.
 
+Note that centroid restraints are supported only in the Servalcat JSON format. Therefore, files other than
+mc_restraints.json (and mc_restraints.yaml referring to it) do not contain any restraints for grouped ligand
+atoms (e.g. bidentate carboxylate oxygens) collapsed to a centroid in a grouped-fallback coordination class.
+
 When a structure model (PDB/mmCIF file) is given, the original metal-related LINK/connection records specified
 in the input PDB/mmCIF file are deleted and then the metal-related links were added again from scratch based on
 the MetalCoord analysis. To turn off the deletion step, an extra option --keep-links can be used but a user should
 be very careful and check the result to avoid inconsistencies in the connection/link records.
+No links are created for grouped ligand atoms collapsed to a centroid.
 These files are then created:
  - mc_restraints.mmcif
  - mc_restraints.pdb
@@ -37,7 +46,7 @@ ccp4-python json2restraints.py -h
 """
 
 __author__ = "Martin Malý"
-__date__ = "2026-11-10"
+__date__ = "2026-11-20"
 
 import json
 
@@ -73,6 +82,29 @@ def servalcat_group_specs(atom):
         servalcat_atom_spec(m["chain"], m["sequence"], m["icode"], m["name"], m["altloc"])
         for m in members
     ]
+
+
+def is_grouped_class(ligand):
+    """True if the coordination class contains grouped ligands collapsed to a centroid,
+    i.e. its descriptor includes Q, e.g. @OCT{Ca,O,O,O,O,O,Q}."""
+    descriptor = ligand.get("descriptor") or ""
+    if "{" in descriptor and "}" in descriptor:
+        tokens = descriptor[descriptor.index("{") + 1 : descriptor.rindex("}")].split(",")
+        return "Q" in (t.strip() for t in tokens)
+    return False
+
+
+def select_coordination_class(ligands):
+    """Select the coordination class (`ligands` entry in JSON from MetalCoord)
+    to generate restraints from.
+    A grouped-fallback class (with Q in the descriptor) is preferred if available,
+    otherwise the first listed class (the best matching one) is used."""
+    if not ligands:
+        return None
+    for ligand in ligands:
+        if is_grouped_class(ligand):
+            return ligand
+    return ligands[0]
 
 
 def main(
@@ -213,11 +245,10 @@ def main(
                 atom_metal["altloc"],
             )
         ]
-        for l, ligand in enumerate(atom_metal["ligands"]):
-            if l >= 1:
-                break  # consider only the best matching class - which is listed at the first one
+        selected_class = select_coordination_class(atom_metal["ligands"])
+        for ligand in [selected_class] if selected_class else []:
             outputLines.append(
-                f"# {atom_metal['chain']}{atom_metal['sequence_icode']}/{atom_metal['metal']} {atom_metal['altloc']} {atom_metal['residue']}; class: {atom_metal['ligands'][l]['class']}; procrustes: {str(atom_metal['ligands'][l]['procrustes'])}; coordination: {str(atom_metal['ligands'][l]['coordination'])}; count: {str(atom_metal['ligands'][l]['count'])}; description: {str(atom_metal['ligands'][l]['description'])}\n"
+                f"# {atom_metal['chain']}{atom_metal['sequence_icode']}/{atom_metal['metal']} {atom_metal['altloc']} {atom_metal['residue']}; class: {ligand['class']}; procrustes: {str(ligand['procrustes'])}; coordination: {str(ligand['coordination'])}; count: {str(ligand['count'])}; description: {str(ligand['description'])}\n"
             )
             # exte dist - 'base' for within ligand, 'pdb' for its neighbourhood
             for j, atom_ligand in enumerate(ligand["base"] + ligand["pdb"]):

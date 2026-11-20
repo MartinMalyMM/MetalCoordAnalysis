@@ -150,18 +150,32 @@ def test_json2restraints(case, tmp_path):
             assert spec.get("ins") == "C" and spec.get("alt") == "B", spec
 
     if case == "1e8a":
-        # A1090 CA: octahedral with 2 groups collapsed (ASP 65 OD1/OD2 and GLU 72 OE1/OE2)
+        # The grouped-fallback class (Q in the descriptor) is preferred over the first listed class:
+        # A1089, B1089, B1090: octahedral with 1 group collapsed (GLU 31 or GLU 72 OE1/OE2)
+        # A1090: octahedral with 2 groups collapsed (ASP 65 OD1/OD2 and GLU 72 OE1/OE2)
         # centroid restraints are only in the JSON file
         assert "cdist" not in output_txt and "cangl" not in output_txt
-        assert len(cdist_json) == 2
-        assert len(cangl_json) == 9
-        metal = [{"chain": "A", "resi": 1090, "names": ["CA"]}]
+        assert "class: octahedral" in output_txt
+        assert "class: pentagonal-bipyramid" not in output_txt
+        assert len(cdist_json) == 5
+        assert len(cangl_json) == 24
+        expected_members = {
+            ("A", 1089): {(31, "OE1"), (31, "OE2")},
+            ("A", 1090): {(65, "OD1"), (65, "OD2"), (72, "OE1"), (72, "OE2")},
+            ("B", 1089): {(31, "OE1"), (31, "OE2")},
+            ("B", 1090): {(72, "OE1"), (72, "OE2")},
+        }
+        for (chain, resi), members in expected_members.items():
+            metal = [{"chain": chain, "resi": resi, "names": ["CA"]}]
+            cdist_metal = [r for r in cdist_json if r["restr"]["specs"][0] == metal]
+            assert cdist_metal, f"No cdist restraints for {chain}{resi}"
+            centroid_members = {(spec["resi"], spec["names"][0]) for r in cdist_metal for spec in r["restr"]["specs"][1]}
+            assert centroid_members == members
+        metals = [[{"chain": c, "resi": r, "names": ["CA"]}] for c, r in expected_members]
         for r in cdist_json:
-            assert r["restr"]["specs"][0] == metal
+            assert r["restr"]["specs"][0] in metals
         for r in cangl_json:
-            assert r["restr"]["specs"][1] == metal
-        centroid_members = {(spec["resi"], spec["names"][0]) for r in cdist_json for spec in r["restr"]["specs"][1]}
-        assert centroid_members == {(65, "OD1"), (65, "OD2"), (72, "OE1"), (72, "OE2")}
+            assert r["restr"]["specs"][1] in metals
 
     # --- Servalcat: load the restraints for the output structure, no refinement run ---
     # read_external_restraints() raises RuntimeError if a restraint refers to an atom not in the structure
