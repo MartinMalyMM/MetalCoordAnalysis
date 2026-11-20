@@ -120,14 +120,19 @@ Further, for a particular metal atom considering a particular coordination, the 
 
 We can now generate external bond length and angle restraints for *Refmacat* or *Servalcat* using the script *json2restraints.py*. We have to specify all the JSON files from *MetalCoord*. We also need to specify the structure model PDB/mmCIF file to apply the connections reported in the *pdb* section::
 
-   python json2restraints.py -i 4dl8_AF3_mc.json 4dl8_MG_mc.json 4dl8_NA_mc.json -p 4dl8.cif -o 4dl8_mc_restraints
+   ccp4-python json2restraints.py -i 4dl8_AF3_mc.json 4dl8_MG_mc.json 4dl8_NA_mc.json -p 4dl8.cif -o 4dl8_mc_restraints
 
-The script creates five files:
+The script creates these files:
 
- - 4dl8_mc_restraints.txt is a keyword file for *Servalcat* or *Refmacat* containing the external bond length and angle restraints based on a coordination class with the lowest procrustes score.
+ - 4dl8_mc_restraints.txt is a keyword file for *Servalcat* or *Refmacat* containing the external bond length and angle restraints based on the best matching coordination class (a grouped-fallback class with centroids is preferred if available).
+ - 4dl8_mc_restraints.json is a keyword file for *Servalcat* (version 0.4.150 or later) in the new format containing the same external restraints. Restraints for grouped ligand atoms (*e.g.* bidentate carboxylate oxygens) are given as restraints to their centroid (cdist, cangl).
+ - 4dl8_mc_restraints.yaml is a configuration file for *Servalcat* (version 0.4.150 or later) specifying 4dl8_mc_restraints.json as a file with external restraints. It can be used as ``servalcat refine_xtal_norefmac ... --config 4dl8_mc_restraints.yaml``. Note that the path to 4dl8_mc_restraints.json is relative to the directory where *Servalcat* is run.
  - 4dl8_mc_restraints_coot.txt is the same keyword file in a simplified format which is compatible with *Coot*. It can be loaded in Coot using Calculate -> Modules -> Restraints and then Restraints -> Read Refmac Extra Restraints. The file does not include restraints for atoms with alternative conformations and atoms from symmetry-related molecules.
  - 4dl8_mc_restraints.params is a keyword file compatible with *Phenix.refine*. The file does not include restraints for atoms from symmetry-related molecules.
- - 4dl8_mc_restraints.mmcif and 4dl8_mc_restraints.pdb are structure models with modified connection/link records: The original metal-related connection/link records specified in the input PDB/mmCIF file were deleted and then the metal-related links were added again from scratch based on the MetalCoord analysis. To turn off the deletion step, an extra option ``--keep-links`` can be used but a user should be very careful and check the result to avoid inconsistencies in the connection/link records.
+ - 4dl8_mc_restraints_buster.txt is a keyword file compatible with *Buster*.
+ - 4dl8_mc_restraints.mmcif and 4dl8_mc_restraints.pdb are structure models with modified connection/link records: The original metal-related connection/link records specified in the input PDB/mmCIF file are deleted and then the metal-related links are added again from scratch based on the MetalCoord analysis. For grouped ligand atoms collapsed to a centroid, a link is created to each atom of the group. To turn off the deletion step, an extra option ``--keep-links`` can be used but a user should be very careful and check the result to avoid inconsistencies in the connection/link records.
+
+Note that centroid restraints are supported only in the *Servalcat* JSON format. Therefore, files other than 4dl8_mc_restraints.json (and 4dl8_mc_restraints.yaml referring to it) do not contain any restraints for grouped ligand atoms collapsed to a centroid in a grouped-fallback coordination class.
 
 Now we can refine the structure model in *Servalcat* using the external restraints::
 
@@ -233,15 +238,15 @@ In these cases, the non-metal atom pairs (oxygen atoms O1 and O2 in the example 
 
 1) Identification of the metal-atom-atom-metal interactions in an input PDB/mmCIF file. Extracting the relevant non-metal atom pairs.
 
-2) Declaration of a new helper atom which is placed in between the atoms in the identified pairs. The original pairs of atoms are temporarily deleted from the structure. The information about the atom pairs is kept in a new separate file with the suffix ``_nopairs_equivalents.json``. Let’s download the structure model and diffraction data in one directory:
+2) Replacement of each identified atom pair with a single helper atom placed in between them: the first atom of the pair (in alphabetical order, *e.g.* O1) is moved to the midpoint of the pair and the second one (*e.g.* O2) is temporarily deleted from the structure. The modified structure is saved with the suffix ``_nopairs``. The information about the atom pairs is kept in a new separate file with the suffix ``_nopairs_equivalents.json``. Let’s download the structure model and diffraction data in one directory:
 
    https://files.rcsb.org/download/8tnv.cif
 
    https://files.rcsb.org/download/8tnv-sf.cif
 
-   The first two steps are automated in an extra script ``traingles.py``::
+   The first two steps are automated in an extra script ``triangles.py``::
 
-    python traingles.py 8tnv.cif
+    ccp4-python triangles.py 8tnv.cif
 
 3) Then *MetalCoord* can be run using the temporary structure as input::
 
@@ -249,7 +254,7 @@ In these cases, the non-metal atom pairs (oxygen atoms O1 and O2 in the example 
 
 4) Generate the external restraints while applying the bond length for the helper atom to the whole pair of atoms. The bond angle restraints for these atoms are not applied::
 
-    python3 json2restraints.py -i 8tnv_nopairs_mc.json -o 8tnv_mc_restraints -p 8tnv.cif -e 8tnv_nopairs_equivalents.json
+    ccp4-python json2restraints.py -i 8tnv_nopairs_mc.json -o 8tnv_mc_restraints -p 8tnv.cif -e 8tnv_nopairs_equivalents.json
 
 At the end of the file ``8tnv_mc_restraints.txt``, these lines describing the distance of the pairs of atoms can be added manually::
 
@@ -260,6 +265,6 @@ The dictionary file CUO.cif should be available in the CCP4 monomer library or c
 
    servalcat refine_xtal_norefmac --hklin 8tnv-sf.cif --model 8tnv_mc_restraints.mmcif -s xray --ncsr --ligand CUO.cif --keyword_file 8tnv_mc_restraints.txt -o 8tnv_servalcat_restraints --adp aniso
 
-Other examples of monomers with such traingles are `C4R <https://www.rcsb.org/ligand/C4R>`_, `DVW <https://www.rcsb.org/ligand/DVW>`_, `J9H <https://www.rcsb.org/ligand/J9H>`_, `RMD <https://www.rcsb.org/ligand/RMD>`_. A special case is `PLL <https://www.rcsb.org/ligand/PLL>`_ where three atoms would need to be replaced with one.
+Other examples of monomers with such triangles are `C4R <https://www.rcsb.org/ligand/C4R>`_, `DVW <https://www.rcsb.org/ligand/DVW>`_, `J9H <https://www.rcsb.org/ligand/J9H>`_, `RMD <https://www.rcsb.org/ligand/RMD>`_. A special case is `PLL <https://www.rcsb.org/ligand/PLL>`_ where three atoms would need to be replaced with one.
 
 Note: From these considerations, we exclude *sandwich*-like metal containing ligands or cases where both non-metal atoms involved above are members of the same ring, *e.g.* monomer codes `JSC <https://www.rcsb.org/ligand/JSC>`_ or `4IR <https://www.rcsb.org/ligand/4IR>`_.
