@@ -1,19 +1,21 @@
 """
 Generate external bond length and angle restraints from JSON files from MetalCoord stats to keywords
-for Servalcat / Refmac5 / Coot / Phenix / Buster.
+for Servalcat / Refmacat / Coot / Phenix / Buster.
 
 Typical usage:
 ccp4-python json2restraints.py -i 4dl8_AF3_mc.json 4dl8_MG_mc.json 4dl8_NA_mc.json -p 4dl8.cif -o mc_restraints
 
 The script creates these files:
 
- - mc_restraints.json is a keyword file for Servalcat in the new format containing the external bond
+ - mc_restraints.json is a file for Servalcat (version 0.4.150 or later)
+   in the JSON format containing the external bond
    length and angle restraints based on the best matching coordination class
    (a grouped-fallback class with centroids is preferred if available).
    Restraints for grouped ligand atoms (e.g. bidentate carboxylate oxygens) are given
    as restraints to their centroid (cdist, cangl).
- - mc_restraints.yaml is a configuration file for Servalcat specifying mc_restraints.json as a file
-   with external restraints. It can be used as: servalcat refine_xtal_norefmac ... --config mc_restraints.yaml
+ - mc_restraints.yaml is a configuration file for Servalcat (version 0.4.150 or later)
+   specifying mc_restraints.json as a file with external restraints.
+   It can be used as: servalcat refine_xtal_norefmac ... --config mc_restraints.yaml
    Note that the path to mc_restraints.json is relative to the directory where Servalcat is run.
  - mc_restraints.txt is a keyword file for Servalcat or Refmacat containing the external bond
    length and angle restraints based on the best matching coordination class
@@ -30,9 +32,10 @@ mc_restraints.json (and mc_restraints.yaml referring to it) do not contain any r
 atoms (e.g. bidentate carboxylate oxygens) collapsed to a centroid in a grouped-fallback coordination class.
 
 When a structure model (PDB/mmCIF file) is given, the original metal-related LINK/connection records specified
-in the input PDB/mmCIF file are deleted and then the metal-related links were added again from scratch based on
-the MetalCoord analysis. To turn off the deletion step, an extra option --keep-links can be used but a user should
-be very careful and check the result to avoid inconsistencies in the connection/link records.
+in the input PDB/mmCIF file (and records referring to atoms not found in the model) are deleted and then
+the metal-related links are added again from scratch based on the MetalCoord analysis. To turn off the deletion
+step, an extra option --keep-links can be used but a user should be very careful and check the result to avoid
+inconsistencies in the connection/link records.
 For grouped ligand atoms collapsed to a centroid, a link is created to each atom of the group.
 These files are then created:
  - mc_restraints.mmcif
@@ -62,6 +65,9 @@ except:
 # and a coordination class (an item of the 'ligands' list)
 Atom = dict[str, Any]
 CoordinationClass = dict[str, Any]
+# Keys identifying an atom in the MetalCoord JSON. "operator" is not included as it was added
+# only in recent MetalCoord versions (and it is redundant with "symmetry")
+ATOM_ID_KEYS = ("name", "chain", "residue", "sequence", "icode", "altloc", "symmetry")
 # Atom specification for external restraints in the Servalcat JSON format
 AtomSpec = dict[str, Any]
 
@@ -115,7 +121,8 @@ def select_coordination_class(ligands: list[CoordinationClass]) -> CoordinationC
     """Select the coordination class (`ligands` entry in JSON from MetalCoord)
     to generate restraints from.
     A grouped-fallback class (with Q in the descriptor) is preferred if available,
-    otherwise the first listed class (the best matching one) is used."""
+    otherwise the first listed class (the best matching one) is used.
+    Returns None if no coordination class is listed."""
     if not ligands:
         return None
     for ligand in ligands:
@@ -160,28 +167,31 @@ def add_metal_link(st: gemmi.Structure, atom_metal: Atom, atom_ligand: Atom, nam
 
 def main(
     jsonPaths: list[str],
-    stPath: str | None = None,
+    stPath: str = "",
     outputPrefix: str = "restraints",
-    jsonEquivalentsPath: str | None = None,
+    jsonEquivalentsPath: str = "",
     keep_links: bool = False,
-    distance_variant: int | None = None,
+    distance_variant: int = 0,
 ) -> None:
-    """This script generates external bond length and angle restraints for Refmacat or Servalcat
-       from the JSON files from MetalCoord stats.
+    """
+    Generate external bond length and angle restraints for
+    Servalcat / Refmacat / Coot / Phenix / Buster
+    from the JSON files from MetalCoord stats.
 
     Args:
-        jsonPaths (list): List of MetalCoord JSON file names or paths.
-                          Required argument.
+        jsonPaths (list[str]): List of MetalCoord JSON file names or paths.
+                               Required argument.
         stPath (str): PDB/mmCIF file name or path. Required for updating LINK/connection records
-        outputPrefix (str): Prefix for output file names
-        jsonEquivalentsPath (str): Only for a special case of nonmetal-metal-nonmetal triangles:
+                      and writing the output structure files (.mmcif, .pdb).
+        outputPrefix (str): Prefix for output file names.
+        jsonEquivalentsPath (str): Only for a special case of metal-atom-atom-metal triangles:
                                    JSON file specifying equivalent atoms.
-        keep_links (bool): Keep links in the input stPath file.
+        keep_links (bool): Keep metal-related links in the input stPath file.
                            Default: False
-        distance_variant (int): If more variants for the same distance restraint possible,
-                                write only n-th variant to an output restraints file for Phenix and Buster.
-                                It may help troubleshooting.
-                                Default: None so all variant will be written.
+        distance_variant (int): If more variants for the same distance restraint are possible,
+                                write only the n-th variant (counted from 1) to the output restraints files
+                                for Phenix and Buster. It may help troubleshooting.
+                                Default: 0 so all variants will be written.
 
     Returns:
         None"""
@@ -197,7 +207,7 @@ def main(
     if stPath:
         st = gemmi.read_structure(stPath)
         if not keep_links:
-            # Delete LINK connection records of a type of MetalC or involving metal atoms
+            # Delete LINK connection records involving metal (usually MetalC type) atoms or atoms not found in any model
             connections_kept = gemmi.ConnectionList()
             for connection in st.connections:
                 for m in range(len(st)):
@@ -213,6 +223,7 @@ def main(
                             or partner2_atom.element.is_metal
                         ):
                             connections_kept.append(connection)
+                        break  # keep each connection only once, even for multiple models
             n_links_old = len(st.connections)
             n_links_kept = len(connections_kept)
             st.connections.clear()
@@ -230,8 +241,8 @@ def main(
 
     # If provided, load a JSON file describing equivalent atoms (mainly for metal-atom-atom-metal triangles)
     # and apply to the JSON information from metalCoord
-    # - modify records in 'base' and 'pdb' section for exte bond restraints
-    # - delete records in 'angles' section for exte angle restraints
+    # - append records in 'base' and 'pdb' sections for exte bond restraints (template atom -> equivalent atom)
+    # - delete records in 'angles' section for exte angle restraints (with the template atom)
     if jsonEquivalentsPath:
         print("JSON file describing equivalent atoms will be applied.")
         atom_pairs_all: list[list[Atom]] = []
@@ -242,9 +253,9 @@ def main(
                 for l, ligand in enumerate(atom_metal["ligands"]):
                     for base_or_pdb in ["base", "pdb"]:
                         for j, atom_ligand in enumerate(ligand[base_or_pdb]):
-                            if (
-                                atom_pairs[0]
-                                == d[m]["ligands"][l][base_or_pdb][j]["ligand"]
+                            if all(  # same atom
+                                atom_pairs[0][k] == d[m]["ligands"][l][base_or_pdb][j]["ligand"][k]
+                                for k in ATOM_ID_KEYS
                             ):
                                 print("Bond length: Template atom:", atom_pairs[0])
                                 d[m]["ligands"][l][base_or_pdb].append(
@@ -257,7 +268,10 @@ def main(
                     angle_restraints_to_delete = []
                     for j, atom_ligands in enumerate(ligand["angles"]):
                         for ligand in ["ligand1", "ligand2"]:
-                            if atom_pairs[0] == d[m]["ligands"][l]["angles"][j][ligand]:
+                            if all(  # same atom
+                                atom_pairs[0][k] == d[m]["ligands"][l]["angles"][j][ligand][k]
+                                for k in ATOM_ID_KEYS
+                            ):
                                 angle_restraints_to_delete.append(j)
                                 print("Bond angle:  Deleted atom: ", atom_pairs[0])
                     if angle_restraints_to_delete:
@@ -365,7 +379,7 @@ def main(
                         restr_json["symm"] = True
                     restr_json["type"] = 0 if i == 0 else 1
                     outputRestraintsJson.append({"rest_type": "dist", "restr": restr_json})
-                    # restaints for Coot cannot include atoms with altloc and symmetry identifiers
+                    # restraints for Coot cannot include atoms with altloc and symmetry identifiers
                     if (
                         not atom_metal["altloc"]
                         and not atom_ligand["ligand"]["altloc"]
@@ -381,7 +395,7 @@ def main(
                         )
                     ):
                         outputLinesBuster.append(line_buster + "\n")
-                        # restaints for phenix.refine: atoms with symmetry records are not included
+                        # restraints for phenix.refine: atoms with symmetry records are not included
                         if not atom_ligand["ligand"]["symmetry"]:
                             outputLinesPhenix.append("  bond {\n")
                             outputLinesPhenix.append("    action = *add\n")
@@ -504,7 +518,7 @@ def main(
                     }
                 )
                 outputLinesBuster.append(line_buster + "\n")
-                # restaints for Coot cannot include atoms with altloc and symmetry identifiers
+                # restraints for Coot cannot include atoms with altloc and symmetry identifiers
                 if (
                     not atom_metal["altloc"]
                     and not atom_ligands["ligand1"]["altloc"]
@@ -513,7 +527,7 @@ def main(
                     and not atom_ligands["ligand2"]["symmetry"]
                 ):
                     outputLinesCoot.append(line_coot + "\n")
-                # restaints for phenix.refine cannot include atoms with symmetry
+                # restraints for phenix.refine cannot include atoms with symmetry
                 if (
                     not atom_ligands["ligand1"]["symmetry"]
                     and not atom_ligands["ligand2"]["symmetry"]
@@ -651,8 +665,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-p",
-        help="PDB or mmCIF file whose LINK records will be updated",
+        help="PDB or mmCIF file; its LINK records are updated in OUTPUT.mmcif and OUTPUT.pdb",
         type=str,
+        default="",
         metavar="STRUCTURE",
     )
     parser.add_argument(
@@ -669,19 +684,28 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-e",
-        help="JSON file describing equivalent atoms",
+        help=(
+            "JSON file describing equivalent atoms (*_nopairs_equivalents.json from triangles.py),"
+            " only for a special case of metal-atom-atom-metal triangles, e.g. Cu2O2 cluster in CUO,"
+            " see tutorial.rst. It is a list of atom pairs [template_atom, equivalent_atom],"
+            " each atom given as in the MetalCoord JSON files (name, element, chain, residue,"
+            " sequence, icode, altloc, symmetry). For every pair, each bond length restraint"
+            " to the template atom is copied for the equivalent atom and all angle restraints"
+            " including the template atom are deleted."
+        ),
         type=str,
+        default="",
         metavar="JSON_EQUIVALENTS",
     )
     parser.add_argument(
         "--distance-variant",
         help=(
-            "If more variants for the same distance restraint possible, which variant of a restraint"
+            "If more variants for the same distance restraint are possible, which variant of a restraint"
             " should be written in restraints for Phenix and Buster, e.g. 1 will select the first variant,"
-            " 2 will select the second variant, etc. (Default: all variants will be written)."
+            " 2 will select the second variant, etc. (Default: 0 so all variants will be written)."
         ),
         type=int,
-        default=None,
+        default=0,
         metavar="DISTANCE_VARIANT",
     )
 
