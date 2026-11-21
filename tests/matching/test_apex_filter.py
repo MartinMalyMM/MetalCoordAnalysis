@@ -181,18 +181,40 @@ def test_near_collinear_triple_is_kept():
     assert _names(ligand) == ["C1", "O1", "O2"]
 
 
-def test_symmetry_copy_apex_is_kept():
-    class _SymmetryAtom(CifAtom):
-        @property
-        def symmetry(self):
-            return 1
+class _SymmetryAtom(CifAtom):
+    @property
+    def symmetry(self):
+        return 1
 
+
+def test_symmetry_copy_apex_is_dropped():
+    # The whole carboxylate comes from one symmetry mate (metal bound across a
+    # crystal contact): it is handled exactly like an asymmetric-unit group.
     ligand = _cif_ligand(
         CARBOXYLATE_METAL,
         CARBOXYLATE,
         {"O1": ["C1"], "C1": ["O1", "O2"], "O2": ["C1"]},
         atom_class=_SymmetryAtom,
     )
+
+    removed = ligand.filter_apex_donors()
+
+    assert [atom.atom.name for atom, _, _ in removed] == ["C1"]
+    assert _names(ligand) == ["O1", "O2"]
+
+
+def test_apex_across_crystal_copies_is_kept():
+    # Same atom names, but the apex comes from a different crystal copy than the
+    # edges: name-based CIF bonds must not join atoms across copies.
+    chain = gemmi.Chain("A")
+    residue = gemmi.Residue()
+    residue.name = "LIG"
+    residue.seqid = gemmi.SeqId("1")
+    ligand = Ligand(CifAtom(_atom(*CARBOXYLATE_METAL), residue, chain))
+    ligand.nonmetal_bonds = {"O1": ["C1"], "C1": ["O1", "O2"], "O2": ["C1"]}
+    for spec in CARBOXYLATE:
+        atom_class = _SymmetryAtom if spec[0] == "C1" else CifAtom
+        ligand.add_ligand(atom_class(_atom(*spec), residue, chain))
 
     assert ligand.filter_apex_donors() == []
     assert _names(ligand) == ["C1", "O1", "O2"]

@@ -1,3 +1,4 @@
+import os
 import gemmi
 import numpy as np
 
@@ -148,3 +149,118 @@ def test_model_grouping_uses_coordinate_bond_graph_with_helpers():
     assert view is not None
     assert view.coordination() == 1
     assert [atom.atom.name for atom in view.groups[0]] == ["N1", "N2"]
+
+
+class _SymmetryCifAtom(CifAtom):
+    @property
+    def symmetry(self):
+        return 1
+
+    @property
+    def symmetry_operator(self):
+        return "-x,y+1/2,-z"
+
+
+def _cif_ligand_with_copies(atom_specs, bonds):
+    """Like `_cif_ligand`, but each spec says whether the atom is a symmetry copy."""
+    chain = gemmi.Chain("A")
+    residue = gemmi.Residue()
+    residue.name = "LIG"
+    residue.seqid = gemmi.SeqId("1")
+
+    ligand = Ligand(CifAtom(_atom("CU", "Cu", (0, 0, 0)), residue, chain))
+    ligand.nonmetal_bonds = bonds
+    for name, element, xyz, is_symmetry in atom_specs:
+        atom_class = _SymmetryCifAtom if is_symmetry else CifAtom
+        ligand.add_ligand(atom_class(_atom(name, element, xyz), residue, chain))
+    return ligand
+
+
+def test_grouping_collapses_donors_of_one_symmetry_copy():
+    ligand = _cif_ligand_with_copies(
+        [
+            ("O1", "O", (1, 0, 0), True),
+            ("O2", "O", (3, 0, 0), True),
+        ],
+        _adjacency(("O1", "C1"), ("C1", "O2")),
+    )
+
+    view = create_grouped_view(ligand)
+
+    assert view is not None
+    assert view.coordination() == 1
+    centroid = next(iter(view.all_ligands))
+    assert [atom.atom.name for atom in centroid.members] == ["O1", "O2"]
+    assert centroid.symmetry == 1
+    assert centroid.symmetry_operator == "-x,y+1/2,-z"
+
+
+def test_grouping_never_joins_donors_across_crystal_copies():
+    ligand = _cif_ligand_with_copies(
+        [
+            ("O1", "O", (1, 0, 0), False),
+            ("O2", "O", (3, 0, 0), True),
+        ],
+        _adjacency(("O1", "C1"), ("C1", "O2")),
+    )
+
+    assert create_grouped_view(ligand) is None
+
+
+def _move_to_symmetry_mate(st, seqnum, op_triplet):
+    """Moves the CA metal `seqnum` by the symmetry operation `op_triplet`."""
+    op = gemmi.Op(op_triplet)
+    for chain in st[0]:
+        for residue in chain:
+            if residue.name == "CA" and residue.seqid.num == seqnum:
+                for atom in residue:
+                    frac = st.cell.fractionalize(atom.pos)
+                    moved = op.apply_to_xyz([frac.x, frac.y, frac.z])
+                    atom.pos = st.cell.orthogonalize(gemmi.Fractional(*moved))
+
+
+def _model_site_groups(seqnum, symmetry_op=None):
+    from metalCoord.analysis.structures import get_ligands
+
+    path = os.path.join(os.path.dirname(__file__), "..", "data", "models", "3x34.pdb.gz")
+    st = gemmi.read_structure(path)
+    if symmetry_op:
+        _move_to_symmetry_mate(st, seqnum, symmetry_op)
+    st.setup_entities()
+    ligands, _ = get_ligands(st, "CA")
+    (site,) = [l for l in ligands if l.residue.seqid.num == seqnum]
+    site.filter_apex_donors()
+    view = create_grouped_view(site)
+    assert view is not None
+    return site, sorted(
+        (
+            tuple(
+                sorted(
+                    (m.residue.name, m.residue.seqid.num, m.atom.name)
+                    for m in getattr(atom, "members", [atom])
+                )
+            ),
+            atom.symmetry != 0,
+        )
+        for atom in view.all_ligands
+    )
+
+
+def test_model_grouping_is_invariant_to_moving_the_metal_to_a_symmetry_mate():
+    # Moving CA A102 of 3x34 onto a symmetry mate swaps its donors between the
+    # asymmetric unit and a symmetry copy, but the carboxylate groups
+    # (GLU 42, GLU 48) must collapse exactly the same way.
+    site, groups = _model_site_groups(102)
+    site_symm, groups_symm = _model_site_groups(102, "-x+2,y-1/2,-z-1/2")
+
+    assert site.coordination() == site_symm.coordination() == 8
+    assert [members for members, _ in groups] == [
+        members for members, _ in groups_symm
+    ]
+    for (members, is_symm), (_, is_symm_edit) in zip(groups, groups_symm):
+        assert is_symm != is_symm_edit
+    carboxylates = [m for m, _ in groups_symm if len(m) > 1]
+    assert carboxylates == [
+        (("GLU", 42, "OE1"), ("GLU", 42, "OE2")),
+        (("GLU", 48, "OE1"), ("GLU", 48, "OE2")),
+    ]

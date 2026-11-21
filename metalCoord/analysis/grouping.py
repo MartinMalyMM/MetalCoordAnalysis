@@ -69,8 +69,17 @@ def _same_altloc(atom1: IAtom, atom2: IAtom) -> bool:
     return _atom_altloc(atom1) == _atom_altloc(atom2)
 
 
+def _image_key(atom: IAtom) -> tuple:
+    """Identify the crystal copy (symmetry image incl. lattice translation)."""
+    return (atom.symmetry, atom.symmetry_operator)
+
+
 def _can_group(atom1: IAtom, atom2: IAtom) -> bool:
-    if atom1.symmetry or atom2.symmetry:
+    # Atoms are covalently connected only within one crystal copy: both must come
+    # from the same symmetry image *and* lattice translation. Two donors from the
+    # same symmetry mate (e.g. when the metal sits on a symmetry-related molecule)
+    # are grouped exactly like two donors from the asymmetric unit.
+    if _image_key(atom1) != _image_key(atom2):
         return False
     return _same_altloc(atom1, atom2)
 
@@ -120,6 +129,9 @@ class CentroidAtom(IAtom):
 
         self._residue = atoms[0].residue
         self._chain = atoms[0].chain
+        # All members share one crystal copy (enforced by `_can_group`), so the
+        # centroid inherits that copy's symmetry from its first member.
+        self._image_atom = atoms[0]
 
     @property
     def atom(self):
@@ -143,15 +155,15 @@ class CentroidAtom(IAtom):
 
     @property
     def symmetry(self):
-        return 0
+        return self._image_atom.symmetry
 
     @property
     def translation(self):
-        return (0, 0, 0)
+        return self._image_atom.translation
 
     @property
     def symmetry_operator(self):
-        return "x,y,z"
+        return self._image_atom.symmetry_operator
 
     @property
     def pos(self):
@@ -366,9 +378,16 @@ def _cached_graph_from_model(
 
 
 def _ligand_graph_key(structure: Ligand, atom: IAtom):
+    """Node key of `atom` in the covalent graph.
+
+    The model graph is built from the asymmetric unit only (identity image), so a
+    symmetry-mate atom maps onto its asymmetric-unit original: covalent
+    connectivity is invariant under symmetry. Same-copy membership is checked
+    separately by `_can_group`.
+    """
     if structure.nonmetal_bonds:
         return atom.atom.name
-    return _atom_key(atom)
+    return _atom_key(atom)[:-2] + (0, "x,y,z")
 
 
 def _materialise_bridges(bridge_keys, node_index, st) -> list[IAtom]:
@@ -413,7 +432,10 @@ def create_grouped_view(
 
     # Donor atoms (the metal-bonded set that exists *before* the group search).
     # Any node lying on a connecting path that is itself a donor is not a bridge.
-    donor_keys = {_ligand_graph_key(structure, atom) for atom in ligands}
+    # Keyed per crystal copy: a node is a donor only in the copy it binds from.
+    donor_keys = {
+        (_image_key(atom), _ligand_graph_key(structure, atom)) for atom in ligands
+    }
 
     ligand_graph = nx.Graph()
     ligand_graph.add_nodes_from(range(len(ligands)))
@@ -439,8 +461,9 @@ def create_grouped_view(
             # are the "added" bridge atoms pulled in while forming the group. A
             # donor (e.g. a carboxylate CD linking OE1/OE2) stays a full member --
             # it is bonded to the metal, so it belongs in the group and centroid.
+            image = _image_key(atom1)
             edge_bridge_keys[(i, j)] = [
-                key for key in path[1:-1] if key not in donor_keys
+                key for key in path[1:-1] if (image, key) not in donor_keys
             ]
 
     components = [

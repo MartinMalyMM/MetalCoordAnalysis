@@ -762,7 +762,11 @@ class Ligand:
             for j in range(i + 1, len(donors)):
                 atom2 = donors[j]
                 if self._nonmetal_bonds:
-                    connected = atom2.atom.name in self._nonmetal_bonds.get(
+                    # CIF bonds are keyed by atom name only; restrict them to one
+                    # crystal copy so names never join across symmetry mates.
+                    connected = same_crystal_copy(
+                        atom1, atom2
+                    ) and atom2.atom.name in self._nonmetal_bonds.get(
                         atom1.atom.name, []
                     )
                 else:
@@ -807,8 +811,8 @@ class Ligand:
                 continue
 
             central = donors[centrals[0]]
-            if central.symmetry:
-                continue
+            # Symmetry-copy apexes are handled like asymmetric-unit ones: all three
+            # atoms come from one copy (are_donors_bonded), so the geometry is valid.
             if not include_base and central in self._ligands:
                 continue
 
@@ -1080,14 +1084,27 @@ def altloc_code(atom: IAtom) -> str:
     return "" if code in (".", "?") else code
 
 
+def same_crystal_copy(atom1: IAtom, atom2: IAtom) -> bool:
+    """
+    Checks whether two atoms come from the same crystal copy, i.e. the same symmetry
+    image and lattice translation. Only atoms of one copy can be covalently bonded.
+    """
+    return (atom1.symmetry, atom1.symmetry_operator) == (
+        atom2.symmetry,
+        atom2.symmetry_operator,
+    )
+
+
 def are_donors_bonded(atom1: IAtom, atom2: IAtom) -> bool:
     """
     Checks whether two donor atoms are directly bonded, using the same covalent criterion
     as the ligand connectivity graph in grouping.
 
-    Symmetry copies and atoms of different alternative locations are never joined, and
-    atoms closer than APEX_MIN_SEPARATION are treated as overlapping copies rather than
-    as a bond.
+    Atoms from different crystal copies (symmetry image or lattice translation) and atoms
+    of different alternative locations are never joined, and atoms closer than
+    APEX_MIN_SEPARATION are treated as overlapping copies rather than as a bond. Two
+    atoms of the same symmetry copy are treated exactly like atoms of the asymmetric
+    unit (their positions are both the transformed ones, next to the metal).
 
     Args:
         atom1 (IAtom): The first atom.
@@ -1096,7 +1113,7 @@ def are_donors_bonded(atom1: IAtom, atom2: IAtom) -> bool:
     Returns:
         True when the two atoms are bonded.
     """
-    if atom1.symmetry or atom2.symmetry:
+    if not same_crystal_copy(atom1, atom2):
         return False
 
     if altloc_code(atom1) != altloc_code(atom2):
