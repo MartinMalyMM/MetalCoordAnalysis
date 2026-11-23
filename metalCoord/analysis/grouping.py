@@ -65,23 +65,56 @@ def _is_graph_atom(atom: gemmi.Atom) -> bool:
     return not atom.element.is_metal and atom.element.name not in ("H", "D")
 
 
-def _same_altloc(atom1: IAtom, atom2: IAtom) -> bool:
-    return _atom_altloc(atom1) == _atom_altloc(atom2)
-
-
-def _image_key(atom: IAtom) -> tuple:
-    """Identify the crystal copy (symmetry image incl. lattice translation)."""
-    return (atom.symmetry, atom.symmetry_operator)
+def _compatible_altloc(atom1: IAtom, atom2: IAtom) -> bool:
+    """
+    Checks whether two atoms can be present in the same conformer: they have
+    the same altloc, or at least one of them has none (A + B are different
+    conformers).
+    """
+    altloc1, altloc2 = _atom_altloc(atom1), _atom_altloc(atom2)
+    return not altloc1 or not altloc2 or altloc1 == altloc2
 
 
 def _can_group(atom1: IAtom, atom2: IAtom) -> bool:
-    # Atoms are covalently connected only within one crystal copy: both must come
-    # from the same symmetry image *and* lattice translation. Two donors from the
-    # same symmetry mate (e.g. when the metal sits on a symmetry-related molecule)
-    # are grouped exactly like two donors from the asymmetric unit.
-    if _image_key(atom1) != _image_key(atom2):
+    """
+    Checks whether two interacting atoms may be collapsed into one group.
+
+    Two interacting atoms can be grouped only if they:
+
+    1. come from the same crystal copy, i.e. the same symmetry image and lattice
+       translation. Covalent connections exist only within one copy; two
+       interacting atoms of one symmetry mate are grouped exactly like those of
+       the asymmetric unit.
+    2. belong to the same residue (chain, sequence number and insertion code).
+       Interacting atoms of different residues are separate ligands even when
+       they look connected, e.g. two waters modelled as alternative positions
+       without altlocs, about 1 A apart, which the distance-based model graph
+       links.
+    3. have compatible altlocs: no altloc + A, no altloc + no altloc, A + A or
+       B + B can be grouped; A + B (different conformers) cannot.
+
+    Args:
+        atom1 (IAtom): The first interacting atom.
+        atom2 (IAtom): The second interacting atom.
+
+    Returns:
+        True when the two interacting atoms may form one group.
+    """
+    if (atom1.symmetry, atom1.symmetry_operator) != (
+        atom2.symmetry,
+        atom2.symmetry_operator,
+    ):
         return False
-    return _same_altloc(atom1, atom2)
+
+    if (
+        atom1.chain.name != atom2.chain.name
+        or atom1.residue.seqid.num != atom2.residue.seqid.num
+        or _clean_icode(atom1.residue.seqid.icode)
+        != _clean_icode(atom2.residue.seqid.icode)
+    ):
+        return False
+
+    return _compatible_altloc(atom1, atom2)
 
 
 def _representative_element(atoms: list[IAtom]) -> str:
@@ -349,7 +382,10 @@ def _graph_from_model(structure: Ligand) -> tuple[nx.Graph, dict]:
             other_key = _cra_key(cra)
             if other_key == key:
                 continue
-            if _clean_altloc(atom.altloc) != _clean_altloc(cra.atom.altloc):
+            # atoms of different conformers (A and B) are considered to not be bonded;
+            # an atom without altloc can bond to any conformer
+            altloc1, altloc2 = key[5], other_key[5]  # cleaned altlocs
+            if altloc1 and altloc2 and altloc1 != altloc2:
                 continue
             max_dist = 1.3 * (atom.element.covalent_r + cra.atom.element.covalent_r)
             if atom.pos.dist(cra.atom.pos) <= max_dist:
@@ -432,9 +468,11 @@ def create_grouped_view(
 
     # Donor atoms (the metal-bonded set that exists *before* the group search).
     # Any node lying on a connecting path that is itself a donor is not a bridge.
-    # Keyed per crystal copy: a node is a donor only in the copy it binds from.
+    # Keyed per crystal copy (symmetry image and lattice translation): a node is
+    # an interacting atom only in the copy it binds from.
     donor_keys = {
-        (_image_key(atom), _ligand_graph_key(structure, atom)) for atom in ligands
+        ((atom.symmetry, atom.symmetry_operator), _ligand_graph_key(structure, atom))
+        for atom in ligands
     }
 
     ligand_graph = nx.Graph()
@@ -461,15 +499,29 @@ def create_grouped_view(
             # are the "added" bridge atoms pulled in while forming the group. A
             # donor (e.g. a carboxylate CD linking OE1/OE2) stays a full member --
             # it is bonded to the metal, so it belongs in the group and centroid.
-            image = _image_key(atom1)
+            image = (atom1.symmetry, atom1.symmetry_operator)
             edge_bridge_keys[(i, j)] = [
                 key for key in path[1:-1] if (image, key) not in donor_keys
             ]
 
-    components = [
-        sorted(component) for component in nx.connected_components(ligand_graph)
-    ]
-    components.sort(key=lambda component: component[0])
+    # Merge the connected interacting atoms into groups, edge by edge in a fixed
+    # order. Two groups are merged only if the result holds at most one altloc
+    # code, so an interacting atom without altloc cannot join an A and a B atom
+    # into one group.
+    group_of = {i: {i} for i in range(len(ligands))}
+    for i, j in sorted(ligand_graph.edges(), key=lambda edge: tuple(sorted(edge))):
+        group_i, group_j = group_of[i], group_of[j]
+        if group_i is group_j:
+            continue
+        merged = group_i | group_j
+        if len({_atom_altloc(ligands[k]) for k in merged} - {""}) > 1:
+            continue
+        for k in merged:
+            group_of[k] = merged
+    components = sorted(
+        {id(group): sorted(group) for group in group_of.values()}.values(),
+        key=lambda component: component[0],
+    )
 
     groups = []
     added = []

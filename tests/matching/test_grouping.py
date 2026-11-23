@@ -1,6 +1,7 @@
 import os
 import gemmi
 import numpy as np
+import pytest
 
 from metalCoord.analysis.grouping import create_grouped_view
 from metalCoord.analysis.structures import Atom, CifAtom, Ligand
@@ -121,6 +122,34 @@ def test_cif_grouping_keeps_incompatible_altlocs_separate():
     assert create_grouped_view(ligand) is None
 
 
+@pytest.mark.parametrize(
+    "altloc1, altloc2, grouped",
+    [
+        ("", "A", True),
+        ("", "", True),
+        ("A", "A", True),
+        ("B", "B", True),
+        ("A", "B", False),
+    ],
+)
+def test_cif_grouping_requires_compatible_altlocs(altloc1, altloc2, grouped):
+    ligand = _cif_ligand(
+        [
+            ("O1", "O", (1, 0, 0), altloc1),
+            ("O2", "O", (3, 0, 0), altloc2),
+        ],
+        _adjacency(("O1", "C1"), ("C1", "O2")),
+    )
+
+    view = create_grouped_view(ligand)
+
+    if grouped:
+        assert view is not None
+        assert [atom.atom.name for atom in view.groups[0]] == ["O1", "O2"]
+    else:
+        assert view is None
+
+
 def test_model_grouping_uses_coordinate_bond_graph_with_helpers():
     st = gemmi.Structure()
     st.cell = gemmi.UnitCell(20, 20, 20, 90, 90, 90)
@@ -151,6 +180,35 @@ def test_model_grouping_uses_coordinate_bond_graph_with_helpers():
     assert [atom.atom.name for atom in view.groups[0]] == ["N1", "N2"]
 
 
+def test_model_grouping_never_joins_interacting_atoms_of_different_residues():
+    # 2IXT A/CA 1313: one water modelled as two waters without altlocs
+    # (HOH 2238, occ 0.7 and HOH 2243, occ 0.3, 1.2 A apart). The distance-based
+    # model graph links them, but they are two residues and must stay separate.
+    st = gemmi.Structure()
+    st.cell = gemmi.UnitCell(20, 20, 20, 90, 90, 90)
+    model = gemmi.Model("1")
+    chain = gemmi.Chain("A")
+    for name, seqid, atom in (
+        ("CA", "1313", _atom("CA", "Ca", (0, 0, 0))),
+        ("HOH", "2238", _atom("O", "O", (2.3, 0, 0))),
+        ("HOH", "2243", _atom("O", "O", (2.3, 1.2, 0))),
+    ):
+        residue = gemmi.Residue()
+        residue.name = name
+        residue.seqid = gemmi.SeqId(seqid)
+        residue.add_atom(atom)
+        chain.add_residue(residue)
+    model.add_chain(chain)
+    st.add_model(model)
+    chain = st[0]["A"]
+
+    ligand = Ligand(Atom(chain[0][0], chain[0], chain, None, st))
+    ligand.add_ligand(Atom(chain[1][0], chain[1], chain, None, st))
+    ligand.add_ligand(Atom(chain[2][0], chain[2], chain, None, st))
+
+    assert create_grouped_view(ligand) is None
+
+
 class _SymmetryCifAtom(CifAtom):
     @property
     def symmetry(self):
@@ -176,7 +234,7 @@ def _cif_ligand_with_copies(atom_specs, bonds):
     return ligand
 
 
-def test_grouping_collapses_donors_of_one_symmetry_copy():
+def test_grouping_collapses_interacting_atoms_of_one_symmetry_copy():
     ligand = _cif_ligand_with_copies(
         [
             ("O1", "O", (1, 0, 0), True),
@@ -195,7 +253,7 @@ def test_grouping_collapses_donors_of_one_symmetry_copy():
     assert centroid.symmetry_operator == "-x,y+1/2,-z"
 
 
-def test_grouping_never_joins_donors_across_crystal_copies():
+def test_grouping_never_joins_interacting_atoms_across_crystal_copies():
     ligand = _cif_ligand_with_copies(
         [
             ("O1", "O", (1, 0, 0), False),
@@ -247,9 +305,9 @@ def _model_site_groups(seqnum, symmetry_op=None):
 
 
 def test_model_grouping_is_invariant_to_moving_the_metal_to_a_symmetry_mate():
-    # Moving CA A102 of 3x34 onto a symmetry mate swaps its donors between the
-    # asymmetric unit and a symmetry copy, but the carboxylate groups
-    # (GLU 42, GLU 48) must collapse exactly the same way.
+    # Moving CA A102 of 3x34 onto a symmetry mate swaps its interacting atoms
+    # between the asymmetric unit and a symmetry copy, but the carboxylate
+    # groups (GLU 42, GLU 48) must collapse exactly the same way.
     site, groups = _model_site_groups(102)
     site_symm, groups_symm = _model_site_groups(102, "-x+2,y-1/2,-z-1/2")
 
