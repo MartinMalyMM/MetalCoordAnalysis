@@ -142,6 +142,7 @@ def test_json2restraints(case: str, tmp_path: Path) -> None:
     # --- Coot: no comments, no symmetry ---
     assert "#" not in output_coot
     assert "symm y" not in output_coot
+    assert "alte" not in output_coot
 
     # --- Servalcat JSON and YAML config ---
     dist_json = [r for r in output_json if r["rest_type"] == "dist"]
