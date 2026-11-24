@@ -118,7 +118,7 @@ Further, for a particular metal atom considering a particular coordination, the 
  - The section *angles* refers to ideal angles.
  - The section *pdb* refers to intermolecular ideal distances. This information is to be used for the definition of connections in a mmCIF file (formerly also known as LINK records in the PDB file format).
 
-We can now generate external bond length and angle restraints for *Refmacat* or *Servalcat* using the script *json2restraints.py*. We have to specify all the JSON files from *MetalCoord*. We also need to specify the structure model PDB/mmCIF file to apply the connections reported in the *pdb* section::
+We can now generate external bond length and angle restraints for *Servalcat*, *Refmacat*, *Coot*, *Phenix* or *Buster* using the script *json2restraints.py*. We have to specify all the JSON files from *MetalCoord*. We also need to specify the structure model PDB/mmCIF file to apply the connections reported in the *pdb* section::
 
    ccp4-python json2restraints.py -i 4dl8_AF3_mc.json 4dl8_MG_mc.json 4dl8_NA_mc.json -p 4dl8.cif -o 4dl8_mc_restraints
 
@@ -137,6 +137,15 @@ Note that centroid restraints are supported only in the *Servalcat* JSON format.
 Now we can refine the structure model in *Servalcat* using the external restraints::
 
    servalcat refine_xtal_norefmac --hklin 4dl8-sf.cif --model 4dl8_mc_restraints.mmcif -s xray --keyword_file 4dl8_mc_restraints.txt -o 4dl8_servalcat
+
+Similarly, the external restraints can be used in *Phenix.refine*::
+
+   phenix.refine 4dl8_mc_restraints.pdb 4dl8-sf.cif 4dl8_mc_restraints.params
+
+or in *Buster* which requires the diffraction data in the MTZ format::
+
+   gemmi cif2mtz 4dl8-sf.cif 4dl8-sf.mtz
+   refine -p 4dl8_mc_restraints.pdb -m 4dl8-sf.mtz -restraints 4dl8_mc_restraints_buster.txt -d 4dl8_buster
 
 After the refinement, the bond length and angle outliers reported in the refinement log file should be checked.
 
