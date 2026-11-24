@@ -36,6 +36,7 @@ The results are now available in output JSON files. A JSON file is a text file w
            "ligands": [
                {
                    "class": "octahedral",
+                   "descriptor": "@OCT{Al,F,F,F,O,O,O}",
                    "procrustes": 0.067,
                    "coordination": 6,
                    "count": 33,
@@ -49,7 +50,9 @@ The results are now available in output JSON files. A JSON file is a text file w
                                "residue": "AF3",
                                "sequence": 302,
                                "icode": ".",
-                               "altloc": ""
+                               "altloc": "",
+                               "symmetry": 0,
+                               "operator": "x,y,z"
                            },
                            "distance": [
                                1.82
@@ -69,7 +72,9 @@ The results are now available in output JSON files. A JSON file is a text file w
                                "residue": "AF3",
                                "sequence": 302,
                                "icode": ".",
-                               "altloc": ""
+                               "altloc": "",
+                               "symmetry": 0,
+                               "operator": "x,y,z"
                            },
                            "ligand2": {
                                "name": "F1",
@@ -78,7 +83,9 @@ The results are now available in output JSON files. A JSON file is a text file w
                                "residue": "AF3",
                                "sequence": 302,
                                "icode": ".",
-                               "altloc": ""
+                               "altloc": "",
+                               "symmetry": 0,
+                               "operator": "x,y,z"
                            },
                            "angle": 90.0,
                            "std": 5.0
@@ -94,7 +101,9 @@ The results are now available in output JSON files. A JSON file is a text file w
                                "residue": "PO4",
                                "sequence": 303,
                                "icode": ".",
-                               "altloc": ""
+                               "altloc": "",
+                               "symmetry": 0,
+                               "operator": "x,y,z"
                            },
                            "distance": [
                                1.88
@@ -110,7 +119,7 @@ The results are now available in output JSON files. A JSON file is a text file w
        }
    ]
 
-For every metal atom, possible coordinations are reported. In this case, there is only one metal atom reported: AF3 A302/AL. For this atom, only one coordination is described: octahedral class with a coordination of six. The procrustes score is 0.067 which means a good agreement of the coordination geometry of aluminium in the 4dl8 structure in comparison with the reference structures which were used by *MetalCoord*. (A higher procrustes score denotes a worse agreement.)
+For every metal atom, possible coordinations are reported. In this case, there is only one metal atom reported: AF3 A302/AL. For this atom, only one coordination is described: octahedral class with a coordination of six. The descriptor ``@OCT{Al,F,F,F,O,O,O}`` summarises it compactly: the class code (OCT for octahedral) followed by the elements of the metal and its coordinating atoms. The procrustes score is 0.067 which means a good agreement of the coordination geometry of aluminium in the 4dl8 structure in comparison with the reference structures which were used by *MetalCoord*. (A higher procrustes score denotes a worse agreement.)
 
 Further, for a particular metal atom considering a particular coordination, the report consists of three sections: *base*, *angles* and *pdb*.  All the stated ideal values have also their standard deviations denoted as *std*.
 
@@ -174,7 +183,8 @@ However, for the copper ion A401/CU, there is a reported coordination of 4 and a
         "ligands": [
             {
                 "class": "tetrahedral",
-                "procrustes": 0.235,
+                "descriptor": "@TET{Cu,N,N,S,S}",
+                "procrustes": 0.236,
                 "coordination": 4,
                 "count": 328,
                 "description": "Strict correspondence",
@@ -196,7 +206,8 @@ However, for the copper ion A401/CU, there is a reported coordination of 4 and a
                             "sequence": 298,
                             "icode": ".",
                             "altloc": "",
-                            "symmetry": 0
+                            "symmetry": 0,
+                            "operator": "x,y,z"
                         },
                         "distance": [
                             2.4
@@ -217,7 +228,7 @@ When the structure is inspected *e.g.* in *Coot*, it is obvious that this ideal 
 
    metalCoord stats -l CU -p 3kw8.cif -o 3kw8_CU_mc-d0p4.json -d 0.4
 
-In the output file 3kw8_FE_mc-d0p4.json, we can now see that the reported coordination for A401/CU is three, the procrustes score is improved and the atom A298/SD is not taken into account.
+In the output file 3kw8_CU_mc-d0p4.json, we can now see that the reported coordination for A401/CU is three, the procrustes score is improved and the atom A298/SD is not taken into account.
 
 An alternative way how to achieve the same is to set the optional argument ``-c MAXIMUM_COORDINATION`` to specify a lower maximum coordination number::
 
@@ -243,15 +254,16 @@ Metal-atom-atom-Metal triangles
 
 A special category of the metal containing ligands are molecules which include a *triangle* of interactions: metal-atom-atom-metal where the last and the first metal is the same. An example of a such case is the Cu2O2 cluster (monomer code `CUO <https://www.rcsb.org/ligand/CUO>`_) in the crystal structure of hemocyanin functional unit CCHB-g (PDB entry `8tnv <https://www3.rcsb.org/structure/8tnv>`_). In the cluster, there are triangles CU1-O1-O2-CU1 and CU2-O1-O2-CU2.
 
-In these cases, the non-metal atom pairs (oxygen atoms O1 and O2 in the example case) cause issues in the *MetalCoord* analysis as it is difficult to characterise an interaction between them. Thus, the following procedure is currently recommended:
+In these cases, the non-metal atom pairs (oxygen atoms O1 and O2 in the example case) cause issues in the *MetalCoord* analysis as it is difficult to characterise an interaction between them. Let’s download the structure model and diffraction data in one directory:
+
+ - https://files.rcsb.org/download/8tnv.cif
+ - https://files.rcsb.org/download/8tnv-sf.cif
+
+The following procedure is currently recommended:
 
 1) Identification of the metal-atom-atom-metal interactions in an input PDB/mmCIF file. Extracting the relevant non-metal atom pairs.
 
-2) Replacement of each identified atom pair with a single helper atom placed in between them: the first atom of the pair (in alphabetical order, *e.g.* O1) is moved to the midpoint of the pair and the second one (*e.g.* O2) is temporarily deleted from the structure. The modified structure is saved with the suffix ``_nopairs``. The information about the atom pairs is kept in a new separate file with the suffix ``_nopairs_equivalents.json``. Let’s download the structure model and diffraction data in one directory:
-
-   https://files.rcsb.org/download/8tnv.cif
-
-   https://files.rcsb.org/download/8tnv-sf.cif
+2) Replacement of each identified atom pair with a single helper atom placed in between them: the first atom of the pair (in alphabetical order, *e.g.* O1) is moved to the midpoint of the pair and the second one (*e.g.* O2) is temporarily deleted from the structure. The modified structure is saved with the suffix ``_nopairs``. The information about the atom pairs is kept in a new separate file with the suffix ``_nopairs_equivalents.json``.
 
    The first two steps are automated in an extra script ``triangles.py``::
 
