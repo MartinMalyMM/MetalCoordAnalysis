@@ -25,7 +25,11 @@ The script creates these files:
    The file does not include restraints for atoms with alternative conformations and atoms from symmetry-related molecules.
  - mc_restraints.params is a keyword file compatible with Phenix.refine.
    The file does not include restraints for atoms from symmetry-related molecules.
- - mc_restraints_buster.txt is a keyword file compatible with Buster.
+ - mc_restraints_buster.txt is a file with restraints for Buster (refine -restraints mc_restraints_buster.txt).
+   Angle targets and sigmas are given in radians as Buster requires.
+   The file does not include restraints for atoms from symmetry-related molecules
+   and only one variant of each bond length restraint is included (see --distance-variant):
+   by default the variant closest to the distance in the structure model (the first variant if no model is given).
 
 Note that centroid restraints are supported only in the Servalcat JSON format. Therefore, files other than
 mc_restraints.json (and mc_restraints.yaml referring to it) do not contain any restraints for grouped ligand
@@ -54,6 +58,7 @@ __author__ = "Martin Malý"
 __date__ = "2026-11-20"
 
 import json
+import math
 from typing import Any
 
 try:
@@ -152,6 +157,24 @@ def atom_address(st: gemmi.Structure, atom: Atom) -> gemmi.AtomAddress:
     return gemmi.make_address(chain, residue, residue.find_atom(name, atom["altloc"] or "*"))
 
 
+def closest_variant(st: gemmi.Structure | None, atom1: Atom, atom2: Atom, distances: list[float]) -> int:
+    """Index of the distance variant closest to the distance of two atoms (in the same asymmetric unit)
+    in the structure model. Returns 0 (the first variant) if the model or an atom is not available."""
+    if st is None or len(distances) < 2:
+        return 0
+    try:
+        pos1 = st[0].find_cra(atom_address(st, atom1), ignore_segment=True).atom.pos
+        pos2 = st[0].find_cra(atom_address(st, atom2), ignore_segment=True).atom.pos
+    except (IndexError, KeyError, ValueError, RuntimeError, AttributeError):
+        return 0  # an atom not found in the model
+    model_distance = pos1.dist(pos2)
+    closest = 0
+    for i, distance in enumerate(distances):
+        if abs(distance - model_distance) < abs(distances[closest] - model_distance):
+            closest = i
+    return closest
+
+
 def add_metal_link(st: gemmi.Structure, atom_metal: Atom, atom_ligand: Atom, name: str) -> bool:
     """Add a MetalC LINK / _struct_conn record between a metal and a ligand atom
     unless the same connection already exists. Returns True if the link was added."""
@@ -199,7 +222,9 @@ def main(
         distance_variant (int): If more variants for the same distance restraint are possible,
                                 write only the n-th variant (counted from 1) to the output restraints files
                                 for Phenix and Buster. It may help troubleshooting.
-                                Default: 0 so all variants will be written.
+                                Default: 0 so all variants will be written for Phenix
+                                and the variant closest to the distance in the model for Buster
+                                (Buster keeps only one restraint for the same atoms).
 
     Returns:
         None"""
@@ -335,6 +360,14 @@ def main(
                     atom_ligand["ligand"]["sequence_icode"] = str(
                         atom_ligand["ligand"]["sequence"]
                     )
+                # Buster keeps only one restraint for the same atoms ("add" overwrites it) so only one
+                # variant is written: the selected one or the one closest to the distance in the model
+                if 1 <= distance_variant <= len(atom_ligand["distance"]):
+                    buster_variant = distance_variant - 1
+                else:
+                    buster_variant = closest_variant(
+                        st if stPath else None, atom_metal, atom_ligand["ligand"], atom_ligand["distance"]
+                    )
                 for i in range(len(atom_ligand["distance"])):
                     line = f"exte dist first chain {atom_metal['chain']} resi {atom_metal['sequence']} inse {atom_metal['icode']} atom {atom_metal['metal']} "
                     line_coot = line
@@ -394,6 +427,9 @@ def main(
                         and not atom_ligand["ligand"]["symmetry"]
                     ):
                         outputLinesCoot.append(line_coot + "\n")
+                    # restraints for Buster: atoms from symmetry-related molecules cannot be specified
+                    if i == buster_variant and not atom_ligand["ligand"]["symmetry"]:
+                        outputLinesBuster.append(line_buster + "\n")
                     if (
                         len(atom_ligand["distance"]) < 2
                         or not distance_variant
@@ -402,7 +438,6 @@ def main(
                             and i + 1 == distance_variant
                         )
                     ):
-                        outputLinesBuster.append(line_buster + "\n")
                         # restraints for phenix.refine: atoms with symmetry records are not included
                         if not atom_ligand["ligand"]["symmetry"]:
                             outputLinesPhenix.append("  bond {\n")
@@ -454,7 +489,8 @@ def main(
                 # ligand1
                 line += f"first chain {atom_ligands['ligand1']['chain']} resi {atom_ligands['ligand1']['sequence']} inse {atom_ligands['ligand1']['icode']} atom {atom_ligands['ligand1']['name']} "
                 line_coot = line
-                line_buster = f"add angle {atom_ligands['angle']} {atom_ligands['std']} "
+                # Buster reads angle targets and sigmas in radians
+                line_buster = f"add angle {math.radians(atom_ligands['angle']):.6f} {math.radians(atom_ligands['std']):.6f} "
                 line_buster += f"{atom_ligands['ligand1']['chain']}|{atom_ligands['ligand1']['sequence_icode']}:{atom_ligands['ligand1']['name']}"
                 atom_selection_1_phenix = f"chain {atom_ligands['ligand1']['chain']} and resname {atom_ligands['ligand1']['residue']} and resid {atom_ligands['ligand1']['sequence_icode']} and name {atom_ligands['ligand1']['name']}"
                 if atom_ligands["ligand1"]["altloc"]:
@@ -525,7 +561,9 @@ def main(
                         },
                     }
                 )
-                outputLinesBuster.append(line_buster + "\n")
+                # restraints for Buster: atoms from symmetry-related molecules cannot be specified
+                if not atom_ligands["ligand1"]["symmetry"] and not atom_ligands["ligand2"]["symmetry"]:
+                    outputLinesBuster.append(line_buster + "\n")
                 # restraints for Coot cannot include atoms with altloc and symmetry identifiers
                 if (
                     not atom_metal["altloc"]
@@ -699,7 +737,9 @@ if __name__ == "__main__":
         help=(
             "If more variants for the same distance restraint are possible, which variant of a restraint"
             " should be written in restraints for Phenix and Buster, e.g. 1 will select the first variant,"
-            " 2 will select the second variant, etc. (Default: 0 so all variants will be written)."
+            " 2 will select the second variant, etc. (Default: 0 so all variants will be written for Phenix"
+            " and the variant closest to the distance in the model for Buster"
+            " as Buster keeps only one restraint for the same atoms)."
         ),
         type=int,
         default=0,

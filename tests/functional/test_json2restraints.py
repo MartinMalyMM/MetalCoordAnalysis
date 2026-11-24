@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import subprocess
 import sys
@@ -62,6 +63,12 @@ EXTE_ANGLE_PATTERN = (
     r"(?:type [0-9]+)?"
     r"(?: # .*?)?$"
 )
+
+# Buster (refine -restraints): add bond|angle <target> <sigma> <atom-1> ... <atom-N>,
+# atoms as <chain>|<resnum>[<icode>]:<atmnam>[.<altConf>], angles in radians
+BUSTER_ATOM = r"[A-Za-z0-9]+\|-?\d+[A-Za-z]?:[A-Za-z0-9']+(?:\.[A-Za-z0-9])?"
+BUSTER_BOND_PATTERN = rf"^add bond [0-9]+(?:\.[0-9]+)? [0-9]+(?:\.[0-9]+)? {BUSTER_ATOM} {BUSTER_ATOM}$"
+BUSTER_ANGLE_PATTERN = rf"^add angle [0-9]\.[0-9]{{6}} [0-9]\.[0-9]{{6}} {BUSTER_ATOM} {BUSTER_ATOM} {BUSTER_ATOM}$"
 
 REPO = Path(__file__).resolve().parents[2]
 DATA = REPO / "tests" / "data"
@@ -139,7 +146,29 @@ def test_json2restraints(case: str, tmp_path: Path) -> None:
     for line in angle_lines:
         assert re.match(EXTE_ANGLE_PATTERN, line), f"Unexpected exte angle syntax: {line}"
 
-    # --- Coot: no comments, no symmetry ---
+    # --- Buster: syntax, angles in radians, no symmetry, one variant per atom pair ---
+    buster_lines = output_buster.splitlines()
+    buster_bonds = [line for line in buster_lines if line.startswith("add bond ")]
+    buster_angles = [line for line in buster_lines if line.startswith("add angle ")]
+    assert len(buster_bonds) + len(buster_angles) == len(buster_lines), "Unexpected lines in the Buster file"
+    for line in buster_bonds:
+        assert re.match(BUSTER_BOND_PATTERN, line), f"Unexpected Buster bond syntax: {line}"
+    for line in buster_angles:
+        assert re.match(BUSTER_ANGLE_PATTERN, line), f"Unexpected Buster angle syntax: {line}"
+        target, sigma = (float(x) for x in line.split()[2:4])
+        # 180 degrees is 3.141593 after rounding to 6 decimal places
+        assert 0 < target <= math.pi + 1e-6 and 0 < sigma < math.pi, f"Buster angle not in radians: {line}"
+    # no duplicates (Buster keeps only the last one): bonds A-B = B-A, angles A-M-B = B-M-A
+    buster_atoms: list[Any] = [frozenset(line.split()[4:]) for line in buster_bonds]
+    buster_atoms += [(line.split()[5], frozenset(line.split()[4:7:2])) for line in buster_angles]
+    assert len(set(buster_atoms)) == len(buster_atoms), "More Buster restraints for the same atoms"
+    # the same restraints as in the .txt file except those with symmetry mates and extra distance variants
+    dist_pairs_nosymm = {line.split(" value ")[0] for line in dist_lines if "symm y" not in line}
+    angle_lines_nosymm = [line for line in angle_lines if "symm y" not in line]
+    assert len(buster_bonds) == len(dist_pairs_nosymm)
+    assert len(buster_angles) == len(angle_lines_nosymm)
+
+    # --- Coot: no comments, no symmetry, no alt. codes ---
     assert "#" not in output_coot
     assert "symm y" not in output_coot
     assert "alte" not in output_coot
@@ -169,6 +198,15 @@ def test_json2restraints(case: str, tmp_path: Path) -> None:
         # A404C CU altecode B: insertion code and altloc must be propagated to all formats
         assert "resi 404 inse C atom CU altecode B" in output_txt
         assert "A|404C:CU.B" in output_buster
+        # Buster: no symmetry mates (e.g. A102 NE2 coordinates A404C CU via symmetry),
+        # one distance variant closest to the model (A404C CU.B - A930 O: 2.63 A, variants 1.78 and 2.2 A),
+        # angles in radians
+        assert "A|102:NE2" not in output_buster
+        assert "add bond 2.2 0.15 A|404C:CU.B A|930:O\n" in output_buster
+        assert "add bond 1.78 " not in output_buster
+        assert "add bond 2.38 0.15 A|402:CU A|701:O\n" in output_buster
+        assert "add bond 2.04 " not in output_buster
+        assert "add angle 2.131745 0.146433 A|293:ND1 A|401:CU A|288:SG\n" in output_buster
         assert "resid 404C and name CU and altloc B" in params_path.read_text(encoding="utf-8")
         specs_404 = [spec for r in output_json for specs in r["restr"]["specs"] for spec in specs if spec["resi"] == 404]
         assert specs_404
