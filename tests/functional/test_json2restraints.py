@@ -168,6 +168,15 @@ def test_json2restraints(case: str, tmp_path: Path) -> None:
     assert len(buster_bonds) == len(dist_pairs_nosymm)
     assert len(buster_angles) == len(angle_lines_nosymm)
 
+    # --- Phenix (.params): one variant per atom pair (Phenix keeps the last one), the same bonds as for Buster ---
+    output_phenix = params_path.read_text(encoding="utf-8")
+    phenix_bond_atoms = [
+        frozenset(m) for m in re.findall(r"bond \{\s*action = \*add\s*atom_selection_1 = (.*)\n\s*atom_selection_2 = (.*)\n", output_phenix)
+    ]
+    assert len(phenix_bond_atoms) == output_phenix.count("bond {")
+    assert len(set(phenix_bond_atoms)) == len(phenix_bond_atoms), "More Phenix bond restraints for the same atoms"
+    assert len(phenix_bond_atoms) == len(buster_bonds)
+
     # --- Coot: no comments, no symmetry, no alt. codes ---
     assert "#" not in output_coot
     assert "symm y" not in output_coot
@@ -207,6 +216,9 @@ def test_json2restraints(case: str, tmp_path: Path) -> None:
         assert "add bond 2.38 0.15 A|402:CU A|701:O\n" in output_buster
         assert "add bond 2.04 " not in output_buster
         assert "add angle 2.131745 0.146433 A|293:ND1 A|401:CU A|288:SG\n" in output_buster
+        # Phenix: the same distance variants as for Buster
+        assert "distance_ideal = 2.2\n" in output_phenix and "distance_ideal = 1.78\n" not in output_phenix
+        assert "distance_ideal = 2.38\n" in output_phenix and "distance_ideal = 2.04\n" not in output_phenix
         assert "resid 404C and name CU and altloc B" in params_path.read_text(encoding="utf-8")
         specs_404 = [spec for r in output_json for specs in r["restr"]["specs"] for spec in specs if spec["resi"] == 404]
         assert specs_404

@@ -24,12 +24,13 @@ The script creates these files:
    It can be loaded in Coot using Calculate -> Modules -> Restraints and then Restraints -> Read Refmac Extra Restraints.
    The file does not include restraints for atoms with alternative conformations and atoms from symmetry-related molecules.
  - mc_restraints.params is a keyword file compatible with Phenix.refine.
-   The file does not include restraints for atoms from symmetry-related molecules.
  - mc_restraints_buster.txt is a file with restraints for Buster (refine -restraints mc_restraints_buster.txt).
    Angle targets and sigmas are given in radians as Buster requires.
-   The file does not include restraints for atoms from symmetry-related molecules
-   and only one variant of each bond length restraint is included (see --distance-variant):
-   by default the variant closest to the distance in the structure model (the first variant if no model is given).
+
+The files for Phenix and Buster do not include restraints for atoms from symmetry-related molecules.
+As Phenix and Buster keep only one restraint for the same atoms, only one variant of each bond length
+restraint is included in these files (see --distance-variant): by default the variant closest
+to the distance in the structure model (the first variant if no model is given).
 
 Note that centroid restraints are supported only in the Servalcat JSON format. Therefore, files other than
 mc_restraints.json (and mc_restraints.yaml referring to it) do not contain any restraints for grouped ligand
@@ -221,10 +222,9 @@ def main(
                            Default: False
         distance_variant (int): If more variants for the same distance restraint are possible,
                                 write only the n-th variant (counted from 1) to the output restraints files
-                                for Phenix and Buster. It may help troubleshooting.
-                                Default: 0 so all variants will be written for Phenix
-                                and the variant closest to the distance in the model for Buster
-                                (Buster keeps only one restraint for the same atoms).
+                                for Phenix and Buster (they keep only one restraint for the same atoms).
+                                Default: 0 so the variant closest to the distance in the model
+                                (or the first variant if no model is given) will be written.
 
     Returns:
         None"""
@@ -360,12 +360,12 @@ def main(
                     atom_ligand["ligand"]["sequence_icode"] = str(
                         atom_ligand["ligand"]["sequence"]
                     )
-                # Buster keeps only one restraint for the same atoms ("add" overwrites it) so only one
-                # variant is written: the selected one or the one closest to the distance in the model
+                # Buster and Phenix keep only one restraint for the same atoms (the last one) so only one
+                # variant is written for them: the selected one or the one closest to the distance in the model
                 if 1 <= distance_variant <= len(atom_ligand["distance"]):
-                    buster_variant = distance_variant - 1
+                    selected_variant = distance_variant - 1
                 else:
-                    buster_variant = closest_variant(
+                    selected_variant = closest_variant(
                         st if stPath else None, atom_metal, atom_ligand["ligand"], atom_ligand["distance"]
                     )
                 for i in range(len(atom_ligand["distance"])):
@@ -427,34 +427,17 @@ def main(
                         and not atom_ligand["ligand"]["symmetry"]
                     ):
                         outputLinesCoot.append(line_coot + "\n")
-                    # restraints for Buster: atoms from symmetry-related molecules cannot be specified
-                    if i == buster_variant and not atom_ligand["ligand"]["symmetry"]:
+                    # restraints for Buster and phenix.refine: only the selected variant,
+                    # atoms from symmetry-related molecules are not included
+                    if i == selected_variant and not atom_ligand["ligand"]["symmetry"]:
                         outputLinesBuster.append(line_buster + "\n")
-                    if (
-                        len(atom_ligand["distance"]) < 2
-                        or not distance_variant
-                        or (
-                            len(atom_ligand["distance"]) >= 2
-                            and i + 1 == distance_variant
-                        )
-                    ):
-                        # restraints for phenix.refine: atoms with symmetry records are not included
-                        if not atom_ligand["ligand"]["symmetry"]:
-                            outputLinesPhenix.append("  bond {\n")
-                            outputLinesPhenix.append("    action = *add\n")
-                            outputLinesPhenix.append(
-                                f"    atom_selection_1 = {atom_selection_1_phenix}\n"
-                            )
-                            outputLinesPhenix.append(
-                                f"    atom_selection_2 = {atom_selection_2_phenix}\n"
-                            )
-                            outputLinesPhenix.append(
-                                f"    distance_ideal = {atom_ligand['distance'][i]}\n"
-                            )
-                            outputLinesPhenix.append(
-                                f"    sigma = {atom_ligand['std'][i]}\n"
-                            )
-                            outputLinesPhenix.append("  }\n")
+                        outputLinesPhenix.append("  bond {\n")
+                        outputLinesPhenix.append("    action = *add\n")
+                        outputLinesPhenix.append(f"    atom_selection_1 = {atom_selection_1_phenix}\n")
+                        outputLinesPhenix.append(f"    atom_selection_2 = {atom_selection_2_phenix}\n")
+                        outputLinesPhenix.append(f"    distance_ideal = {atom_ligand['distance'][i]}\n")
+                        outputLinesPhenix.append(f"    sigma = {atom_ligand['std'][i]}\n")
+                        outputLinesPhenix.append("  }\n")
                     if j >= len(ligand["base"]) and stPath:
                         # create a LINK /_struct_conn in PDB-mmCIF, it's from 'pdb', i.e. neighbourhood
                         if add_metal_link(
@@ -737,9 +720,9 @@ if __name__ == "__main__":
         help=(
             "If more variants for the same distance restraint are possible, which variant of a restraint"
             " should be written in restraints for Phenix and Buster, e.g. 1 will select the first variant,"
-            " 2 will select the second variant, etc. (Default: 0 so all variants will be written for Phenix"
-            " and the variant closest to the distance in the model for Buster"
-            " as Buster keeps only one restraint for the same atoms)."
+            " 2 will select the second variant, etc. Phenix and Buster keep only one restraint for the same atoms."
+            " (Default: 0 so the variant closest to the distance in the structure model will be written,"
+            " or the first variant if no model is given)."
         ),
         type=int,
         default=0,
