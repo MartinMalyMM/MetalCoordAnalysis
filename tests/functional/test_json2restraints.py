@@ -128,8 +128,27 @@ def test_json2restraints(case: str, tmp_path: Path) -> None:
     params_path = output_prefix.with_suffix(".params")
     mmcif_path = output_prefix.with_suffix(".mmcif")
     pdb_path = output_prefix.with_suffix(".pdb")
-    for path in [txt_path, json_path, yaml_path, coot_path, buster_path, params_path, mmcif_path, pdb_path]:
+    pdb_buster_path = output_prefix.with_name(output_prefix.name + "_buster.pdb")
+    for path in [txt_path, json_path, yaml_path, coot_path, buster_path, params_path, mmcif_path, pdb_path, pdb_buster_path]:
         assert path.exists(), f"Missing generated file: {path}"
+
+    # --- PDB file for Buster: the same links as in the .pdb file except metal-water links ---
+    def link_set(st: gemmi.Structure, metal_water: bool) -> set[tuple[str, ...]]:
+        links = set()
+        for c in st.connections:
+            cras = [st[0].find_cra(p, ignore_segment=True) for p in (c.partner1, c.partner2)]
+            is_metal_water = any(
+                a.atom.element.is_metal and b.residue.is_water() for a, b in (cras, cras[::-1])
+            )
+            if is_metal_water == metal_water:
+                links.add(tuple(sorted(str(cra) for cra in cras)))
+        return links
+
+    st_pdb = gemmi.read_structure(str(pdb_path))
+    st_pdb_buster = gemmi.read_structure(str(pdb_buster_path))
+    assert link_set(st_pdb, metal_water=True), "test case expected to contain metal-water links"
+    assert not link_set(st_pdb_buster, metal_water=True)
+    assert link_set(st_pdb_buster, metal_water=False) == link_set(st_pdb, metal_water=False)
 
     output_txt = txt_path.read_text(encoding="utf-8")
     output_json = json.loads(json_path.read_text(encoding="utf-8"))

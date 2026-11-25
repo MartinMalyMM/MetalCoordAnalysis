@@ -140,6 +140,7 @@ The script creates these files:
  - 4dl8_mc_restraints.params is a keyword file compatible with *Phenix.refine*. The file does not include restraints for atoms from symmetry-related molecules. As *Phenix* keeps only one restraint for the same atoms, only one variant of each bond length restraint is included: by default the variant closest to the distance in the structure model (see the option ``--distance-variant``).
  - 4dl8_mc_restraints_buster.txt is a file with restraints for *Buster* (``refine ... -restraints 4dl8_mc_restraints_buster.txt``). Angle targets and sigmas are given in radians as *Buster* requires. The file does not include restraints for atoms from symmetry-related molecules and, as for *Phenix*, only one variant of each bond length restraint is included.
  - 4dl8_mc_restraints.mmcif and 4dl8_mc_restraints.pdb are structure models with modified connection/link records: The original metal-related connection/link records specified in the input PDB/mmCIF file are deleted and then the metal-related links are added again from scratch based on the MetalCoord analysis. For grouped ligand atoms collapsed to a centroid, a link is created to each atom of the group. To turn off the deletion step, an extra option ``--keep-links`` can be used but a user should be very careful and check the result to avoid inconsistencies in the connection/link records.
+ - 4dl8_mc_restraints_buster.pdb is the same structure model as 4dl8_mc_restraints.pdb but without any links between metals and water molecules.
 
 Note that centroid restraints are supported only in the *Servalcat* JSON format. Therefore, files other than 4dl8_mc_restraints.json (and 4dl8_mc_restraints.yaml referring to it) do not contain any restraints for grouped ligand atoms collapsed to a centroid in a grouped-fallback coordination class.
 
@@ -154,7 +155,7 @@ Similarly, the external restraints can be used in *Phenix.refine*::
 or in *Buster* which requires the diffraction data in the MTZ format::
 
    gemmi cif2mtz 4dl8-sf.cif 4dl8-sf.mtz
-   refine -p 4dl8_mc_restraints.pdb -m 4dl8-sf.mtz -restraints 4dl8_mc_restraints_buster.txt -d 4dl8_buster
+   refine -p 4dl8_mc_restraints_buster.pdb -m 4dl8-sf.mtz -restraints 4dl8_mc_restraints_buster.txt -d 4dl8_buster
 
 After the refinement, the bond length and angle outliers reported in the refinement log file should be checked.
 

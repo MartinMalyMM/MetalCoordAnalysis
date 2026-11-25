@@ -45,6 +45,9 @@ For grouped ligand atoms collapsed to a centroid, a link is created to each atom
 These files are then created:
  - mc_restraints.mmcif
  - mc_restraints.pdb
+ - mc_restraints_buster.pdb is the same as mc_restraints.pdb but without any links between metals and waters
+   To be used as:
+   refine -p mc_restraints_buster.pdb -m data.mtz -restraints mc_restraints_buster.txt ...
 
 Dependencies:
  - gemmi
@@ -236,6 +239,7 @@ def main(
     outputRestraintsPhenixPath = outputPrefix + ".params"
     outputMmcifPath = outputPrefix + ".mmcif"
     outputPdbPath = outputPrefix + ".pdb"
+    outputPdbBusterPath = outputPrefix + "_buster.pdb"
 
     if stPath:
         st = gemmi.read_structure(stPath)
@@ -650,20 +654,39 @@ def main(
         else:
             print(f"Number of added links in the input structure file: {str(i_con-1)}")
         st.make_mmcif_document().write_file(outputMmcifPath)
-        try:
-            st.write_pdb(outputPdbPath)
-        except Exception as e:
-            import sys
-            import os
-
-            sys.stderr.write("WARNING: Output PDB file could not be written: ")
-            sys.stderr.write(str(e))
-            sys.stderr.write("\n")
+        # All the metal-water links are deleted in the PDB file for Buster.
+        st_buster = st.clone()
+        connections_buster = gemmi.ConnectionList()
+        for connection in st.connections:
+            metal_water = False
+            for m in range(len(st)):
+                cra1 = st[m].find_cra(connection.partner1, ignore_segment=True)
+                cra2 = st[m].find_cra(connection.partner2, ignore_segment=True)
+                if cra1.atom and cra2.atom:
+                    metal_water = (cra1.atom.element.is_metal and cra2.residue.is_water()) or (
+                        cra2.atom.element.is_metal and cra1.residue.is_water()
+                    )
+                    break
+            if not metal_water:
+                connections_buster.append(connection)
+        n_links_water = len(st.connections) - len(connections_buster)
+        st_buster.connections = connections_buster
+        for st_out, pdbPath in ((st, outputPdbPath), (st_buster, outputPdbBusterPath)):
             try:
-                if os.path.exists(outputPdbPath):
-                    os.remove(outputPdbPath)
-            except:
-                pass
+                st_out.write_pdb(pdbPath)
+            except Exception as e:
+                import sys
+                import os
+
+                sys.stderr.write(f"WARNING: Output PDB file {pdbPath} could not be written: ")
+                sys.stderr.write(str(e))
+                sys.stderr.write("\n")
+                try:
+                    if os.path.exists(pdbPath):
+                        os.remove(pdbPath)
+                except:
+                    pass
+        print(f"Number of metal-water links deleted in the PDB file for Buster: {n_links_water}")
     return
 
 
@@ -683,7 +706,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-p",
-        help="PDB or mmCIF file; its LINK records are updated in OUTPUT.mmcif and OUTPUT.pdb",
+        help="PDB or mmCIF file; its LINK records are updated in OUTPUT.mmcif, OUTPUT.pdb and OUTPUT_buster.pdb",
         type=str,
         default="",
         metavar="STRUCTURE",
