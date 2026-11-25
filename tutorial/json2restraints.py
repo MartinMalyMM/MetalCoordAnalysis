@@ -45,8 +45,9 @@ For grouped ligand atoms collapsed to a centroid, a link is created to each atom
 These files are then created:
  - mc_restraints.mmcif
  - mc_restraints.pdb
- - mc_restraints_buster.pdb is the same as mc_restraints.pdb but without links which are handled
-   by the bond length restraints in mc_restraints_buster.txt. Other links (e.g. disulfide bridges) are kept. To be used as:
+ - mc_restraints_buster.pdb is the same as mc_restraints.pdb but without any links of the metals
+   from the MetalCoord JSON files as their coordination is handled by the restraints in mc_restraints_buster.txt.
+   Other links (e.g. disulfide bridges) are kept. To be used as:
    refine -p mc_restraints_buster.pdb -m data.mtz -restraints mc_restraints_buster.txt ...
 
 Dependencies:
@@ -323,8 +324,6 @@ def main(
     outputLinesCoot: list[str] = []
     outputLinesPhenix: list[str] = []
     outputLinesBuster: list[str] = []
-    # atom pairs (chain, seqnum, icode, atom name) with a bond length restraint for Buster
-    bondsBuster: set[frozenset[tuple[str, int, str, str]]] = set()
     # Buster: add bond|bcor|angle|plane  <target> <sigma> [<weight>] <atom-1> ... <atom-N>
     # Buster: <chain>|<resnum>:<atmnam>[.<altConf>]
     i_con = 1
@@ -437,15 +436,6 @@ def main(
                     # atoms from symmetry-related molecules are not included
                     if i == selected_variant and not atom_ligand["ligand"]["symmetry"]:
                         outputLinesBuster.append(line_buster + "\n")
-                        bondsBuster.add(
-                            frozenset(
-                                (a["chain"], int(a["sequence"]), a["icode"].strip(". "), name)
-                                for a, name in (
-                                    (atom_metal, atom_metal["metal"]),
-                                    (atom_ligand["ligand"], atom_ligand["ligand"]["name"]),
-                                )
-                            )
-                        )
                         outputLinesPhenix.append("  bond {\n")
                         outputLinesPhenix.append("    action = *add\n")
                         outputLinesPhenix.append(f"    atom_selection_1 = {atom_selection_1_phenix}\n")
@@ -665,17 +655,19 @@ def main(
         else:
             print(f"Number of added links in the input structure file: {str(i_con-1)}")
         st.make_mmcif_document().write_file(outputMmcifPath)
-        # PDB file for Buster: links handled by the bond length restraints in the Buster restraints file
-        # are deleted (Buster would otherwise create its own restraints for some of them and it cannot
-        # handle e.g. some links of AL in AF3). Other links (e.g. disulfide bridges, modified residues) are kept.
+        # PDB file for Buster: all links involving the metal atoms from the MetalCoord JSON files are deleted
+        # as their coordination is handled by the restraints in the Buster restraints file.
+        # Other links (e.g. disulfide bridges, modified residues) are kept.
+        metals = {
+            (a["chain"], int(a["sequence"]), (a["icode"] or "").strip(". "), a["metal"]) for a in d
+        }
         st_buster = st.clone()
         connections_buster = gemmi.ConnectionList()
         for connection in st.connections:
-            restrained = connection.asu != gemmi.Asu.Different and frozenset(
-                (p.chain_name, p.res_id.seqid.num, p.res_id.seqid.icode.strip(), p.atom_name)
+            if not any(
+                (p.chain_name, p.res_id.seqid.num, p.res_id.seqid.icode.strip(), p.atom_name) in metals
                 for p in (connection.partner1, connection.partner2)
-            ) in bondsBuster
-            if not restrained:
+            ):
                 connections_buster.append(connection)
         n_links_deleted_buster = len(st.connections) - len(connections_buster)
         st_buster.connections = connections_buster
@@ -695,7 +687,7 @@ def main(
                 except:
                     pass
         print(
-            f"Number of links deleted in the PDB file for Buster (handled by bond length restraints): {n_links_deleted_buster}"
+            f"Number of links of the metals from the JSON files deleted in the PDB file for Buster: {n_links_deleted_buster}"
         )
     return
 

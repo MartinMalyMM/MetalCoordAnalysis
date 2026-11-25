@@ -113,6 +113,11 @@ def test_json2restraints(case: str, tmp_path: Path) -> None:
         json_path = DATA / "models" / "1E8A_CA.json"
         model_path = DATA / "models" / "1E8A.cif.gz"
     output_prefix = tmp_path / f"{case}_mc_restraints"
+    # metal atoms from the MetalCoord JSON file: (chain, seqid, atom name)
+    metals = {
+        (a["chain"], f"{a['sequence']}{(a['icode'] or '').strip('. ')}", a["metal"])
+        for a in json.loads(json_path.read_text(encoding="utf-8"))
+    }
 
     json2restraints_main(
         jsonPaths=[str(json_path)],
@@ -132,27 +137,19 @@ def test_json2restraints(case: str, tmp_path: Path) -> None:
     for path in [txt_path, json_path, yaml_path, coot_path, buster_path, params_path, mmcif_path, pdb_path, pdb_buster_path]:
         assert path.exists(), f"Missing generated file: {path}"
 
-    # --- PDB file for Buster: the links from the .pdb file except those handled by bond length
-    # restraints in *_buster.txt ---
-    # atom pairs restrained in *_buster.txt, atoms as (chain, seqid, name), e.g. "A|404C:CU.B" -> ("A", "404C", "CU")
-    bonds_buster = set()
-    for line in buster_path.read_text(encoding="utf-8").splitlines():
-        if line.startswith("add bond "):
-            atoms = [re.match(r"(.*)\|(.*):([^.]*)", a).groups() for a in line.split()[4:6]]
-            bonds_buster.add(frozenset(atoms))
-
+    # --- PDB file for Buster: the links from the .pdb file except those of the metals from the JSON file ---
     def links(st: gemmi.Structure) -> dict[frozenset, bool]:
-        """{atom pair: restrained in *_buster.txt}"""
+        """{atom pair: link of a metal from the JSON file}"""
         result = {}
         for c in st.connections:
-            pair = frozenset((p.chain_name, str(p.res_id.seqid).strip(), p.atom_name) for p in (c.partner1, c.partner2))
-            result[pair] = pair in bonds_buster and c.asu != gemmi.Asu.Different
+            atoms = [(p.chain_name, str(p.res_id.seqid).strip(), p.atom_name) for p in (c.partner1, c.partner2)]
+            result[frozenset(atoms)] = any(a in metals for a in atoms)
         return result
 
     links_pdb = links(gemmi.read_structure(str(pdb_path)))
     links_pdb_buster = links(gemmi.read_structure(str(pdb_buster_path)))
-    assert any(links_pdb.values()), "test case expected to contain restrained links"
-    assert set(links_pdb_buster) == {pair for pair, restrained in links_pdb.items() if not restrained}
+    assert any(links_pdb.values()), "test case expected to contain links of the metals from the JSON file"
+    assert links_pdb_buster == {pair: metal for pair, metal in links_pdb.items() if not metal}
 
     output_txt = txt_path.read_text(encoding="utf-8")
     output_json = json.loads(json_path.read_text(encoding="utf-8"))
