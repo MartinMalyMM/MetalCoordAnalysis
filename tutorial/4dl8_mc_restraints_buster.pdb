@@ -98,20 +98,6 @@ HELIX   12  12 PRO A  274  ARG A  278  5                                   5
 HELIX   13  13 ASN A  280  TRP A  284  5                                   5    
 SHEET    1   A 2 VAL A 228  GLN A 229  0                                        
 SHEET    2   A 2 VAL A 232  GLU A 233 -1  O  VAL A 232   N  GLN A 229           
-LINK        AL   AF3 A 302                 O1  PO4 A 303     1555   1555  1.89  
-LINK        AL   AF3 A 302                 OP1 UMP A 301     1555   1555  1.91  
-LINK        MG    MG A 304                 F3  AF3 A 302     1555   1555  2.00  
-LINK        MG    MG A 304                 O2  PO4 A 303     1555   1555  1.95  
-LINK        MG    MG A 304                 OE2 GLU A  48     1555   1555  2.07  
-LINK        MG    MG A 304                 OE2 GLU A  51     1555   1555  2.03  
-LINK        MG    MG A 304                 OP2 UMP A 301     1555   1555  1.91  
-LINK        MG    MG A 305                 F3  AF3 A 302     1555   1555  2.00  
-LINK        MG    MG A 305                 OD2 ASP A  79     1555   1555  2.05  
-LINK        MG    MG A 305                 OE1 GLU A  48     1555   1555  2.00  
-LINK        MG    MG A 305                 OE1 GLU A  51     1555   1555  2.14  
-LINK        MG    MG A 305                 OE1 GLU A  76     1555   1555  1.94  
-LINK        NA    NA A 306                 OE1 GLU A  51     1555   1555  2.43  
-LINK        NA    NA A 306                 OE2 GLU A  76     1555   1555  2.21  
 CISPEP   1 PHE A  159    PRO A  160          0         1.41                     
 SITE     1 AC1 20 GLN A  21  LEU A  24  ASN A  25  GLU A  48                    
 SITE     2 AC1 20 LYS A  59  TRP A  60  TRP A  61  ASP A  79                    

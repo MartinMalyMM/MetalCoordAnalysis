@@ -132,23 +132,27 @@ def test_json2restraints(case: str, tmp_path: Path) -> None:
     for path in [txt_path, json_path, yaml_path, coot_path, buster_path, params_path, mmcif_path, pdb_path, pdb_buster_path]:
         assert path.exists(), f"Missing generated file: {path}"
 
-    # --- PDB file for Buster: the same links as in the .pdb file except metal-water links ---
-    def link_set(st: gemmi.Structure, metal_water: bool) -> set[tuple[str, ...]]:
-        links = set()
-        for c in st.connections:
-            cras = [st[0].find_cra(p, ignore_segment=True) for p in (c.partner1, c.partner2)]
-            is_metal_water = any(
-                a.atom.element.is_metal and b.residue.is_water() for a, b in (cras, cras[::-1])
-            )
-            if is_metal_water == metal_water:
-                links.add(tuple(sorted(str(cra) for cra in cras)))
-        return links
+    # --- PDB file for Buster: the links from the .pdb file except those handled by bond length
+    # restraints in *_buster.txt ---
+    # atom pairs restrained in *_buster.txt, atoms as (chain, seqid, name), e.g. "A|404C:CU.B" -> ("A", "404C", "CU")
+    bonds_buster = set()
+    for line in buster_path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("add bond "):
+            atoms = [re.match(r"(.*)\|(.*):([^.]*)", a).groups() for a in line.split()[4:6]]
+            bonds_buster.add(frozenset(atoms))
 
-    st_pdb = gemmi.read_structure(str(pdb_path))
-    st_pdb_buster = gemmi.read_structure(str(pdb_buster_path))
-    assert link_set(st_pdb, metal_water=True), "test case expected to contain metal-water links"
-    assert not link_set(st_pdb_buster, metal_water=True)
-    assert link_set(st_pdb_buster, metal_water=False) == link_set(st_pdb, metal_water=False)
+    def links(st: gemmi.Structure) -> dict[frozenset, bool]:
+        """{atom pair: restrained in *_buster.txt}"""
+        result = {}
+        for c in st.connections:
+            pair = frozenset((p.chain_name, str(p.res_id.seqid).strip(), p.atom_name) for p in (c.partner1, c.partner2))
+            result[pair] = pair in bonds_buster and c.asu != gemmi.Asu.Different
+        return result
+
+    links_pdb = links(gemmi.read_structure(str(pdb_path)))
+    links_pdb_buster = links(gemmi.read_structure(str(pdb_buster_path)))
+    assert any(links_pdb.values()), "test case expected to contain restrained links"
+    assert set(links_pdb_buster) == {pair for pair, restrained in links_pdb.items() if not restrained}
 
     output_txt = txt_path.read_text(encoding="utf-8")
     output_json = json.loads(json_path.read_text(encoding="utf-8"))
