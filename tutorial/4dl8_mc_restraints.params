@@ -1,0 +1,650 @@
+refinement.geometry_restraints.edits {
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name F1
+    distance_ideal = 1.82
+    sigma = 0.05
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name F2
+    distance_ideal = 1.82
+    sigma = 0.05
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name F3
+    distance_ideal = 1.82
+    sigma = 0.05
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_2 = chain A and resname HOH and resid 401 and name O
+    distance_ideal = 1.88
+    sigma = 0.04
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_2 = chain A and resname PO4 and resid 303 and name O1
+    distance_ideal = 1.88
+    sigma = 0.04
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_2 = chain A and resname UMP and resid 301 and name OP1
+    distance_ideal = 1.88
+    sigma = 0.04
+  }
+  angle {
+    action = *change
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F1
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_3 = chain A and resname AF3 and resid 302 and name F2
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *change
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F1
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_3 = chain A and resname AF3 and resid 302 and name F3
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F1
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_3 = chain A and resname HOH and resid 401 and name O
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F1
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_3 = chain A and resname PO4 and resid 303 and name O1
+    angle_ideal = 180.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F1
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_3 = chain A and resname UMP and resid 301 and name OP1
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *change
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F2
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_3 = chain A and resname AF3 and resid 302 and name F3
+    angle_ideal = 180.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F2
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_3 = chain A and resname HOH and resid 401 and name O
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F2
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_3 = chain A and resname PO4 and resid 303 and name O1
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F2
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_3 = chain A and resname UMP and resid 301 and name OP1
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F3
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_3 = chain A and resname HOH and resid 401 and name O
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F3
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_3 = chain A and resname PO4 and resid 303 and name O1
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F3
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_3 = chain A and resname UMP and resid 301 and name OP1
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 401 and name O
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_3 = chain A and resname PO4 and resid 303 and name O1
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 401 and name O
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_3 = chain A and resname UMP and resid 301 and name OP1
+    angle_ideal = 180.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname PO4 and resid 303 and name O1
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name AL
+    atom_selection_3 = chain A and resname UMP and resid 301 and name OP1
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname MG and resid 304 and name MG
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name F3
+    distance_ideal = 2.06
+    sigma = 0.12
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname MG and resid 304 and name MG
+    atom_selection_2 = chain A and resname HOH and resid 437 and name O
+    distance_ideal = 2.07
+    sigma = 0.04
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname MG and resid 304 and name MG
+    atom_selection_2 = chain A and resname PO4 and resid 303 and name O2
+    distance_ideal = 2.07
+    sigma = 0.04
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname MG and resid 304 and name MG
+    atom_selection_2 = chain A and resname GLU and resid 48 and name OE2
+    distance_ideal = 2.07
+    sigma = 0.04
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname MG and resid 304 and name MG
+    atom_selection_2 = chain A and resname GLU and resid 51 and name OE2
+    distance_ideal = 2.07
+    sigma = 0.04
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname MG and resid 304 and name MG
+    atom_selection_2 = chain A and resname UMP and resid 301 and name OP2
+    distance_ideal = 2.07
+    sigma = 0.04
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F3
+    atom_selection_2 = chain A and resname MG and resid 304 and name MG
+    atom_selection_3 = chain A and resname HOH and resid 437 and name O
+    angle_ideal = 180.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F3
+    atom_selection_2 = chain A and resname MG and resid 304 and name MG
+    atom_selection_3 = chain A and resname PO4 and resid 303 and name O2
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F3
+    atom_selection_2 = chain A and resname MG and resid 304 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 48 and name OE2
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F3
+    atom_selection_2 = chain A and resname MG and resid 304 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 51 and name OE2
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F3
+    atom_selection_2 = chain A and resname MG and resid 304 and name MG
+    atom_selection_3 = chain A and resname UMP and resid 301 and name OP2
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 437 and name O
+    atom_selection_2 = chain A and resname MG and resid 304 and name MG
+    atom_selection_3 = chain A and resname PO4 and resid 303 and name O2
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 437 and name O
+    atom_selection_2 = chain A and resname MG and resid 304 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 48 and name OE2
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 437 and name O
+    atom_selection_2 = chain A and resname MG and resid 304 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 51 and name OE2
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 437 and name O
+    atom_selection_2 = chain A and resname MG and resid 304 and name MG
+    atom_selection_3 = chain A and resname UMP and resid 301 and name OP2
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname PO4 and resid 303 and name O2
+    atom_selection_2 = chain A and resname MG and resid 304 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 48 and name OE2
+    angle_ideal = 180.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname PO4 and resid 303 and name O2
+    atom_selection_2 = chain A and resname MG and resid 304 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 51 and name OE2
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname PO4 and resid 303 and name O2
+    atom_selection_2 = chain A and resname MG and resid 304 and name MG
+    atom_selection_3 = chain A and resname UMP and resid 301 and name OP2
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname GLU and resid 48 and name OE2
+    atom_selection_2 = chain A and resname MG and resid 304 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 51 and name OE2
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname GLU and resid 48 and name OE2
+    atom_selection_2 = chain A and resname MG and resid 304 and name MG
+    atom_selection_3 = chain A and resname UMP and resid 301 and name OP2
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname GLU and resid 51 and name OE2
+    atom_selection_2 = chain A and resname MG and resid 304 and name MG
+    atom_selection_3 = chain A and resname UMP and resid 301 and name OP2
+    angle_ideal = 180.0
+    sigma = 5.0
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname MG and resid 305 and name MG
+    atom_selection_2 = chain A and resname AF3 and resid 302 and name F3
+    distance_ideal = 2.06
+    sigma = 0.12
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname MG and resid 305 and name MG
+    atom_selection_2 = chain A and resname HOH and resid 401 and name O
+    distance_ideal = 2.07
+    sigma = 0.04
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname MG and resid 305 and name MG
+    atom_selection_2 = chain A and resname ASP and resid 79 and name OD2
+    distance_ideal = 2.07
+    sigma = 0.04
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname MG and resid 305 and name MG
+    atom_selection_2 = chain A and resname GLU and resid 48 and name OE1
+    distance_ideal = 2.07
+    sigma = 0.04
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname MG and resid 305 and name MG
+    atom_selection_2 = chain A and resname GLU and resid 51 and name OE1
+    distance_ideal = 2.07
+    sigma = 0.04
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname MG and resid 305 and name MG
+    atom_selection_2 = chain A and resname GLU and resid 76 and name OE1
+    distance_ideal = 2.07
+    sigma = 0.04
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F3
+    atom_selection_2 = chain A and resname MG and resid 305 and name MG
+    atom_selection_3 = chain A and resname HOH and resid 401 and name O
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F3
+    atom_selection_2 = chain A and resname MG and resid 305 and name MG
+    atom_selection_3 = chain A and resname ASP and resid 79 and name OD2
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F3
+    atom_selection_2 = chain A and resname MG and resid 305 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 48 and name OE1
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F3
+    atom_selection_2 = chain A and resname MG and resid 305 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 51 and name OE1
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname AF3 and resid 302 and name F3
+    atom_selection_2 = chain A and resname MG and resid 305 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 76 and name OE1
+    angle_ideal = 180.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 401 and name O
+    atom_selection_2 = chain A and resname MG and resid 305 and name MG
+    atom_selection_3 = chain A and resname ASP and resid 79 and name OD2
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 401 and name O
+    atom_selection_2 = chain A and resname MG and resid 305 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 48 and name OE1
+    angle_ideal = 180.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 401 and name O
+    atom_selection_2 = chain A and resname MG and resid 305 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 51 and name OE1
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 401 and name O
+    atom_selection_2 = chain A and resname MG and resid 305 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 76 and name OE1
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname ASP and resid 79 and name OD2
+    atom_selection_2 = chain A and resname MG and resid 305 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 48 and name OE1
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname ASP and resid 79 and name OD2
+    atom_selection_2 = chain A and resname MG and resid 305 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 51 and name OE1
+    angle_ideal = 180.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname ASP and resid 79 and name OD2
+    atom_selection_2 = chain A and resname MG and resid 305 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 76 and name OE1
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname GLU and resid 48 and name OE1
+    atom_selection_2 = chain A and resname MG and resid 305 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 51 and name OE1
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname GLU and resid 48 and name OE1
+    atom_selection_2 = chain A and resname MG and resid 305 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 76 and name OE1
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname GLU and resid 51 and name OE1
+    atom_selection_2 = chain A and resname MG and resid 305 and name MG
+    atom_selection_3 = chain A and resname GLU and resid 76 and name OE1
+    angle_ideal = 90.0
+    sigma = 5.0
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname NA and resid 306 and name NA
+    atom_selection_2 = chain A and resname HOH and resid 402 and name O
+    distance_ideal = 2.42
+    sigma = 0.09
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname NA and resid 306 and name NA
+    atom_selection_2 = chain A and resname HOH and resid 403 and name O
+    distance_ideal = 2.42
+    sigma = 0.09
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname NA and resid 306 and name NA
+    atom_selection_2 = chain A and resname HOH and resid 401 and name O
+    distance_ideal = 2.42
+    sigma = 0.09
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname NA and resid 306 and name NA
+    atom_selection_2 = chain A and resname HOH and resid 485 and name O
+    distance_ideal = 2.42
+    sigma = 0.09
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname NA and resid 306 and name NA
+    atom_selection_2 = chain A and resname GLU and resid 51 and name OE1
+    distance_ideal = 2.42
+    sigma = 0.09
+  }
+  bond {
+    action = *add
+    atom_selection_1 = chain A and resname NA and resid 306 and name NA
+    atom_selection_2 = chain A and resname GLU and resid 76 and name OE2
+    distance_ideal = 2.42
+    sigma = 0.09
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 402 and name O
+    atom_selection_2 = chain A and resname NA and resid 306 and name NA
+    atom_selection_3 = chain A and resname HOH and resid 403 and name O
+    angle_ideal = 90.05
+    sigma = 8.59
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 402 and name O
+    atom_selection_2 = chain A and resname NA and resid 306 and name NA
+    atom_selection_3 = chain A and resname HOH and resid 401 and name O
+    angle_ideal = 169.37
+    sigma = 7.79
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 402 and name O
+    atom_selection_2 = chain A and resname NA and resid 306 and name NA
+    atom_selection_3 = chain A and resname HOH and resid 485 and name O
+    angle_ideal = 90.05
+    sigma = 8.59
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 402 and name O
+    atom_selection_2 = chain A and resname NA and resid 306 and name NA
+    atom_selection_3 = chain A and resname GLU and resid 51 and name OE1
+    angle_ideal = 90.05
+    sigma = 8.59
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 402 and name O
+    atom_selection_2 = chain A and resname NA and resid 306 and name NA
+    atom_selection_3 = chain A and resname GLU and resid 76 and name OE2
+    angle_ideal = 90.05
+    sigma = 8.59
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 403 and name O
+    atom_selection_2 = chain A and resname NA and resid 306 and name NA
+    atom_selection_3 = chain A and resname HOH and resid 401 and name O
+    angle_ideal = 90.05
+    sigma = 8.59
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 403 and name O
+    atom_selection_2 = chain A and resname NA and resid 306 and name NA
+    atom_selection_3 = chain A and resname HOH and resid 485 and name O
+    angle_ideal = 90.05
+    sigma = 8.59
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 403 and name O
+    atom_selection_2 = chain A and resname NA and resid 306 and name NA
+    atom_selection_3 = chain A and resname GLU and resid 51 and name OE1
+    angle_ideal = 170.75
+    sigma = 9.36
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 403 and name O
+    atom_selection_2 = chain A and resname NA and resid 306 and name NA
+    atom_selection_3 = chain A and resname GLU and resid 76 and name OE2
+    angle_ideal = 90.05
+    sigma = 8.59
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 401 and name O
+    atom_selection_2 = chain A and resname NA and resid 306 and name NA
+    atom_selection_3 = chain A and resname HOH and resid 485 and name O
+    angle_ideal = 90.05
+    sigma = 8.59
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 401 and name O
+    atom_selection_2 = chain A and resname NA and resid 306 and name NA
+    atom_selection_3 = chain A and resname GLU and resid 51 and name OE1
+    angle_ideal = 90.05
+    sigma = 8.59
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 401 and name O
+    atom_selection_2 = chain A and resname NA and resid 306 and name NA
+    atom_selection_3 = chain A and resname GLU and resid 76 and name OE2
+    angle_ideal = 90.05
+    sigma = 8.59
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 485 and name O
+    atom_selection_2 = chain A and resname NA and resid 306 and name NA
+    atom_selection_3 = chain A and resname GLU and resid 51 and name OE1
+    angle_ideal = 90.05
+    sigma = 8.59
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname HOH and resid 485 and name O
+    atom_selection_2 = chain A and resname NA and resid 306 and name NA
+    atom_selection_3 = chain A and resname GLU and resid 76 and name OE2
+    angle_ideal = 170.75
+    sigma = 9.36
+  }
+  angle {
+    action = *add
+    atom_selection_1 = chain A and resname GLU and resid 51 and name OE1
+    atom_selection_2 = chain A and resname NA and resid 306 and name NA
+    atom_selection_3 = chain A and resname GLU and resid 76 and name OE2
+    angle_ideal = 90.05
+    sigma = 8.59
+  }
+}

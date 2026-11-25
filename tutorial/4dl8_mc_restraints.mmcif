@@ -55,15 +55,17 @@ loop_
 _struct_ref_seq.align_id
 _struct_ref_seq.ref_id
 _struct_ref_seq.pdbx_strand_id
+_struct_ref_seq.pdbx_PDB_id_code
 _struct_ref_seq.seq_align_beg
 _struct_ref_seq.seq_align_end
+_struct_ref_seq.pdbx_db_accession
 _struct_ref_seq.db_align_beg
 _struct_ref_seq.db_align_end
 _struct_ref_seq.pdbx_auth_seq_align_beg
 _struct_ref_seq.pdbx_seq_align_beg_ins_code
 _struct_ref_seq.pdbx_auth_seq_align_end
 _struct_ref_seq.pdbx_seq_align_end_ins_code
-1 1 A 4 290 1 287 1 ? 287 ?
+1 1 A 4DL8 4 290 Q57ZH3 1 287 1 ? 287 ?
 
 loop_
 _chem_comp.id
@@ -150,7 +152,6 @@ _reflns.pdbx_Rsym_value
 _reflns.pdbx_netI_over_sigmaI
 4DL8 1 1 33398 1.698 28.203 99.7 15.7 0.078 0.078 23.5
 
-
 loop_
 _refine.entry_id
 _refine.pdbx_refine_id
@@ -158,7 +159,12 @@ _refine.ls_d_res_high
 _refine.ls_d_res_low
 _refine.ls_percent_reflns_obs
 _refine.ls_number_reflns_obs
-4DL8 'X-RAY DIFFRACTION' 1.698 28.2 99.7 33293
+_refine.ls_number_reflns_R_work
+_refine.ls_number_reflns_R_free
+_refine.ls_R_factor_obs
+_refine.ls_R_factor_R_work
+_refine.ls_R_factor_R_free
+4DL8 'X-RAY DIFFRACTION' 1.698 28.2 99.7 33293 31632 1661 0.1681 0.1667 0.1944
 
 
 
@@ -329,27 +335,27 @@ _struct_conn.pdbx_ptnr2_PDB_ins_code
 _struct_conn.ptnr2_symmetry
 _struct_conn.details
 _struct_conn.pdbx_dist_value
-metalcoord1 metalc C AF3 . AL ? A 302 ? 1_555 D PO4 . O1 ? A 303 ? 1_555 ? 1.8920
-metalcoord2 metalc C AF3 . AL ? A 302 ? 1_555 H HOH . O ? A 401 ? 1_555 ? 1.9541
+metalcoord1 metalc C AF3 . AL ? A 302 ? 1_555 H HOH . O ? A 401 ? 1_555 ? 1.9541
+metalcoord2 metalc C AF3 . AL ? A 302 ? 1_555 D PO4 . O1 ? A 303 ? 1_555 ? 1.8920
 metalcoord3 metalc C AF3 . AL ? A 302 ? 1_555 B UMP . OP1 ? A 301 ? 1_555 ? 1.9090
-metalcoord4 metalc E MG . MG ? A 304 ? 1_555 A GLU 51 OE2 ? A 48 ? 1_555 ? 2.0681
-metalcoord5 metalc E MG . MG ? A 304 ? 1_555 A GLU 54 OE2 ? A 51 ? 1_555 ? 2.0291
-metalcoord6 metalc E MG . MG ? A 304 ? 1_555 B UMP . OP2 ? A 301 ? 1_555 ? 1.9144
-metalcoord7 metalc E MG . MG ? A 304 ? 1_555 C AF3 . F3 ? A 302 ? 1_555 ? 1.9987
-metalcoord8 metalc E MG . MG ? A 304 ? 1_555 H HOH . O ? A 437 ? 1_555 ? 2.1762
-metalcoord9 metalc E MG . MG ? A 304 ? 1_555 D PO4 . O2 ? A 303 ? 1_555 ? 1.9451
-metalcoord10 metalc F MG . MG ? A 305 ? 1_555 A ASP 82 OD2 ? A 79 ? 1_555 ? 2.0497
-metalcoord11 metalc F MG . MG ? A 305 ? 1_555 A GLU 51 OE1 ? A 48 ? 1_555 ? 2.0019
-metalcoord12 metalc F MG . MG ? A 305 ? 1_555 A GLU 54 OE1 ? A 51 ? 1_555 ? 2.1441
-metalcoord13 metalc F MG . MG ? A 305 ? 1_555 A GLU 79 OE1 ? A 76 ? 1_555 ? 1.9376
-metalcoord14 metalc F MG . MG ? A 305 ? 1_555 H HOH . O ? A 401 ? 1_555 ? 2.0549
-metalcoord15 metalc F MG . MG ? A 305 ? 1_555 C AF3 . F3 ? A 302 ? 1_555 ? 1.9971
-metalcoord16 metalc G NA . NA ? A 306 ? 1_555 A GLU 79 OE2 ? A 76 ? 1_555 ? 2.2078
-metalcoord17 metalc G NA . NA ? A 306 ? 1_555 H HOH . O ? A 402 ? 1_555 ? 2.1666
-metalcoord18 metalc G NA . NA ? A 306 ? 1_555 H HOH . O ? A 403 ? 1_555 ? 2.3453
-metalcoord19 metalc G NA . NA ? A 306 ? 1_555 A GLU 54 OE1 ? A 51 ? 1_555 ? 2.4319
-metalcoord20 metalc G NA . NA ? A 306 ? 1_555 H HOH . O ? A 401 ? 1_555 ? 2.2293
-metalcoord21 metalc G NA . NA ? A 306 ? 1_555 H HOH . O ? A 485 ? 1_555 ? 2.8707
+metalcoord4 metalc E MG . MG ? A 304 ? 1_555 C AF3 . F3 ? A 302 ? 1_555 ? 1.9987
+metalcoord5 metalc E MG . MG ? A 304 ? 1_555 H HOH . O ? A 437 ? 1_555 ? 2.1762
+metalcoord6 metalc E MG . MG ? A 304 ? 1_555 D PO4 . O2 ? A 303 ? 1_555 ? 1.9451
+metalcoord7 metalc E MG . MG ? A 304 ? 1_555 A GLU 51 OE2 ? A 48 ? 1_555 ? 2.0681
+metalcoord8 metalc E MG . MG ? A 304 ? 1_555 A GLU 54 OE2 ? A 51 ? 1_555 ? 2.0291
+metalcoord9 metalc E MG . MG ? A 304 ? 1_555 B UMP . OP2 ? A 301 ? 1_555 ? 1.9144
+metalcoord10 metalc F MG . MG ? A 305 ? 1_555 C AF3 . F3 ? A 302 ? 1_555 ? 1.9971
+metalcoord11 metalc F MG . MG ? A 305 ? 1_555 H HOH . O ? A 401 ? 1_555 ? 2.0549
+metalcoord12 metalc F MG . MG ? A 305 ? 1_555 A ASP 82 OD2 ? A 79 ? 1_555 ? 2.0497
+metalcoord13 metalc F MG . MG ? A 305 ? 1_555 A GLU 51 OE1 ? A 48 ? 1_555 ? 2.0019
+metalcoord14 metalc F MG . MG ? A 305 ? 1_555 A GLU 54 OE1 ? A 51 ? 1_555 ? 2.1441
+metalcoord15 metalc F MG . MG ? A 305 ? 1_555 A GLU 79 OE1 ? A 76 ? 1_555 ? 1.9376
+metalcoord16 metalc G NA . NA ? A 306 ? 1_555 H HOH . O ? A 402 ? 1_555 ? 2.1666
+metalcoord17 metalc G NA . NA ? A 306 ? 1_555 H HOH . O ? A 403 ? 1_555 ? 2.3453
+metalcoord18 metalc G NA . NA ? A 306 ? 1_555 H HOH . O ? A 401 ? 1_555 ? 2.2293
+metalcoord19 metalc G NA . NA ? A 306 ? 1_555 H HOH . O ? A 485 ? 1_555 ? 2.8707
+metalcoord20 metalc G NA . NA ? A 306 ? 1_555 A GLU 54 OE1 ? A 51 ? 1_555 ? 2.4319
+metalcoord21 metalc G NA . NA ? A 306 ? 1_555 A GLU 79 OE2 ? A 76 ? 1_555 ? 2.2078
 
 loop_
 _struct_conn_type.id
@@ -373,6 +379,107 @@ _struct_mon_prot_cis.pdbx_PDB_ins_code_2
 _struct_mon_prot_cis.label_alt_id
 _struct_mon_prot_cis.pdbx_omega_angle
 1 1 A 162 PHE A 159 ? A 163 PRO A 160 ? . 1.41
+
+loop_
+_struct_site.id
+_struct_site.pdbx_evidence_code
+_struct_site.pdbx_auth_asym_id
+_struct_site.pdbx_auth_comp_id
+_struct_site.pdbx_auth_seq_id
+_struct_site.pdbx_auth_ins_code
+_struct_site.pdbx_num_residues
+_struct_site.details
+AC1 Software A UMP 301 ? 20 'BINDING SITE FOR RESIDUE UMP A 301'
+AC2 Software A AF3 302 ? 14 'BINDING SITE FOR RESIDUE AF3 A 302'
+AC3 Software A PO4 303 ? 11 'BINDING SITE FOR RESIDUE PO4 A 303'
+AC4 Software A MG 304 ? 7 'BINDING SITE FOR RESIDUE MG A 304'
+AC5 Software A MG 305 ? 8 'BINDING SITE FOR RESIDUE MG A 305'
+AC6 Software A NA 306 ? 9 'BINDING SITE FOR RESIDUE NA A 306'
+
+loop_
+_struct_site_gen.id
+_struct_site_gen.site_id
+_struct_site_gen.pdbx_num_res
+_struct_site_gen.label_comp_id
+_struct_site_gen.label_asym_id
+_struct_site_gen.label_seq_id
+_struct_site_gen.pdbx_auth_ins_code
+_struct_site_gen.auth_comp_id
+_struct_site_gen.auth_asym_id
+_struct_site_gen.auth_seq_id
+_struct_site_gen.label_atom_id
+_struct_site_gen.label_alt_id
+_struct_site_gen.symmetry
+_struct_site_gen.details
+1 AC1 20 GLN A 24 ? GLN A 21 . ? '1_555' ?
+2 AC1 20 LEU A 27 ? LEU A 24 . ? '1_555' ?
+3 AC1 20 ASN A 28 ? ASN A 25 . ? '1_555' ?
+4 AC1 20 GLU A 51 ? GLU A 48 . ? '1_555' ?
+5 AC1 20 LYS A 62 ? LYS A 59 . ? '8_555' ?
+6 AC1 20 TRP A 63 ? TRP A 60 . ? '8_555' ?
+7 AC1 20 TRP A 64 ? TRP A 61 . ? '8_555' ?
+8 AC1 20 ASP A 82 ? ASP A 79 . ? '1_555' ?
+9 AC1 20 HIS A 85 ? HIS A 82 . ? '1_555' ?
+10 AC1 20 PHE A 86 ? PHE A 83 . ? '1_555' ?
+11 AC1 20 ASN A 215 ? ASN A 212 . ? '1_555' ?
+12 AC1 20 ARG A 218 ? ARG A 215 . ? '1_555' ?
+13 AC1 20 TYR A 223 ? TYR A 220 . ? '1_555' ?
+14 AC1 20 LYS A 230 ? LYS A 227 . ? '1_555' ?
+15 AC1 20 AF3 C . ? AF3 A 302 . ? '1_555' ?
+16 AC1 20 PO4 D . ? PO4 A 303 . ? '1_555' ?
+17 AC1 20 MG E . ? MG A 304 . ? '1_555' ?
+18 AC1 20 HOH H . ? HOH A 404 . ? '1_555' ?
+19 AC1 20 HOH H . ? HOH A 405 . ? '1_555' ?
+20 AC1 20 HOH H . ? HOH A 437 . ? '1_555' ?
+21 AC2 14 GLU A 51 ? GLU A 48 . ? '1_555' ?
+22 AC2 14 GLU A 54 ? GLU A 51 . ? '1_555' ?
+23 AC2 14 ASP A 82 ? ASP A 79 . ? '1_555' ?
+24 AC2 14 LYS A 211 ? LYS A 208 . ? '1_555' ?
+25 AC2 14 ARG A 218 ? ARG A 215 . ? '1_555' ?
+26 AC2 14 LYS A 230 ? LYS A 227 . ? '1_555' ?
+27 AC2 14 ASN A 238 ? ASN A 235 . ? '1_555' ?
+28 AC2 14 UMP B . ? UMP A 301 . ? '1_555' ?
+29 AC2 14 PO4 D . ? PO4 A 303 . ? '1_555' ?
+30 AC2 14 MG E . ? MG A 304 . ? '1_555' ?
+31 AC2 14 MG F . ? MG A 305 . ? '1_555' ?
+32 AC2 14 NA G . ? NA A 306 . ? '1_555' ?
+33 AC2 14 HOH H . ? HOH A 401 . ? '1_555' ?
+34 AC2 14 HOH H . ? HOH A 485 . ? '1_555' ?
+35 AC3 11 GLU A 54 ? GLU A 51 . ? '1_555' ?
+36 AC3 11 LYS A 62 ? LYS A 59 . ? '8_555' ?
+37 AC3 11 LYS A 65 ? LYS A 62 . ? '8_555' ?
+38 AC3 11 LYS A 230 ? LYS A 227 . ? '1_555' ?
+39 AC3 11 UMP B . ? UMP A 301 . ? '1_555' ?
+40 AC3 11 AF3 C . ? AF3 A 302 . ? '1_555' ?
+41 AC3 11 MG E . ? MG A 304 . ? '1_555' ?
+42 AC3 11 NA G . ? NA A 306 . ? '1_555' ?
+43 AC3 11 HOH H . ? HOH A 401 . ? '1_555' ?
+44 AC3 11 HOH H . ? HOH A 437 . ? '1_555' ?
+45 AC3 11 HOH H . ? HOH A 485 . ? '1_555' ?
+46 AC4 7 GLU A 51 ? GLU A 48 . ? '1_555' ?
+47 AC4 7 GLU A 54 ? GLU A 51 . ? '1_555' ?
+48 AC4 7 UMP B . ? UMP A 301 . ? '1_555' ?
+49 AC4 7 AF3 C . ? AF3 A 302 . ? '1_555' ?
+50 AC4 7 PO4 D . ? PO4 A 303 . ? '1_555' ?
+51 AC4 7 MG F . ? MG A 305 . ? '1_555' ?
+52 AC4 7 HOH H . ? HOH A 437 . ? '1_555' ?
+53 AC5 8 GLU A 51 ? GLU A 48 . ? '1_555' ?
+54 AC5 8 GLU A 54 ? GLU A 51 . ? '1_555' ?
+55 AC5 8 GLU A 79 ? GLU A 76 . ? '1_555' ?
+56 AC5 8 ASP A 82 ? ASP A 79 . ? '1_555' ?
+57 AC5 8 AF3 C . ? AF3 A 302 . ? '1_555' ?
+58 AC5 8 MG E . ? MG A 304 . ? '1_555' ?
+59 AC5 8 NA G . ? NA A 306 . ? '1_555' ?
+60 AC5 8 HOH H . ? HOH A 401 . ? '1_555' ?
+61 AC6 9 GLU A 54 ? GLU A 51 . ? '1_555' ?
+62 AC6 9 GLU A 79 ? GLU A 76 . ? '1_555' ?
+63 AC6 9 AF3 C . ? AF3 A 302 . ? '1_555' ?
+64 AC6 9 PO4 D . ? PO4 A 303 . ? '1_555' ?
+65 AC6 9 MG F . ? MG A 305 . ? '1_555' ?
+66 AC6 9 HOH H . ? HOH A 401 . ? '1_555' ?
+67 AC6 9 HOH H . ? HOH A 402 . ? '1_555' ?
+68 AC6 9 HOH H . ? HOH A 403 . ? '1_555' ?
+69 AC6 9 HOH H . ? HOH A 485 . ? '1_555' ?
 
 loop_
 _atom_type.symbol
